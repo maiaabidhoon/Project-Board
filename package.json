@@ -1,0 +1,18 @@
+{
+  "name": "projectboard",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Project management & team collaboration tool",
+  "engines": { "node": ">=18.11" },
+  "scripts": {
+    "postinstall": "npm --prefix server install && npm --prefix client install",
+    "start": "concurrently -k -n api,web -c cyan,magenta \"npm --prefix server run dev\" \"npm --prefix client run dev\"",
+    "reset-db": "npm --prefix server run reset",
+    "build": "npm --prefix client run build",
+    "start:prod": "cross-env NODE_ENV=production npm --prefix server start"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1",
+    "cross-env": "^7.0.3"
+  }
+}
