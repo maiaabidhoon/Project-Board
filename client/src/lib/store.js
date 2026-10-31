@@ -18,8 +18,12 @@ export function clearSession() {
   localStorage.removeItem('token')
   localStorage.removeItem('user')
   auth.setState(() => ({ token: null, user: null }))
+  assistantChat.setState(() => [])
   select({ projectId: null, taskId: null })
 }
+
+// AI assistant conversation (kept while you move between pages, cleared on sign-out)
+export const assistantChat = new Store([])
 
 // Toast messages
 export const toasts = new Store([])

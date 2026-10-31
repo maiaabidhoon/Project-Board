@@ -2,11 +2,14 @@ import { Router } from 'express'
 import User from '../models/User.js'
 import Project from '../models/Project.js'
 import Task from '../models/Task.js'
+import Meeting from '../models/Meeting.js'
 import { validate, validId } from '../middleware/validate.js'
 import { userCreateSchema, userUpdateSchema } from '../schemas.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HttpError } from '../utils/HttpError.js'
 import { notifyMany } from '../utils/notify.js'
+import { disconnectUser } from '../utils/realtime.js'
+import { purgeUserFromChats } from '../utils/chat.js'
 
 // Mounted behind authenticate + requireRole('admin') in app.js
 const router = Router()
@@ -40,6 +43,7 @@ router.patch('/users/:id', validate(userUpdateSchema), asyncHandler(async (req, 
   if (active !== undefined) user.active = active
   if (password) user.password = password
   await user.save()
+  if (active === false) disconnectUser(user.id) // close their chat connections right away
   if (role !== undefined && role !== previousRole)
     notifyMany([user.id], { type: 'role', message: `${req.user.name} changed your role to ${role}` })
   res.json(user)
@@ -49,6 +53,9 @@ router.delete('/users/:id', asyncHandler(async (req, res) => {
   if (req.params.id === req.user.id) throw new HttpError(400, "You can't delete your own account")
   if (!(await User.findByIdAndDelete(req.params.id))) throw new HttpError(404, 'User not found')
   await Task.updateMany({ assigneeId: req.params.id }, { assigneeId: null })
+  await Promise.all([Meeting.deleteMany({ organizerId: req.params.id }), Meeting.updateMany({ attendees: req.params.id }, { $pull: { attendees: req.params.id } })])
+  disconnectUser(req.params.id)
+  await purgeUserFromChats(req.params.id)
   res.status(204).end()
 }))
 

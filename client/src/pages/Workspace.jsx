@@ -3,7 +3,7 @@ import { useStore } from '@tanstack/react-store'
 import { ui, auth, select, notify } from '../lib/store'
 import { api } from '../lib/api'
 import { go } from '../lib/router'
-import { useProjects, useMembers, useTasks, useRewards, useAction, useCan, useLogout } from '../lib/hooks'
+import { useProjects, useMembers, useTasks, useRewards, useUnreadChats, useAction, useCan, useLogout } from '../lib/hooks'
 import { ROLE_STYLE } from '../lib/constants'
 import Brand from '../components/Brand'
 import Avatar from '../components/Avatar'
@@ -12,6 +12,10 @@ import AccountButton from '../components/AccountButton'
 import NotificationBell from '../components/NotificationBell'
 import Board from '../features/Board'
 import Rewards from '../features/Rewards'
+import Chat from '../features/chat/Chat'
+import Meetings from '../features/Meetings'
+import Reports from '../features/Reports'
+import Assistant from '../features/Assistant'
 
 const navClass = (active) =>
   `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
@@ -34,6 +38,12 @@ export default function Workspace() {
 
   const isMine = projectId === 'mine'
   const isRewards = projectId === 'rewards'
+  const isChat = projectId === 'chat'
+  const isMeetings = projectId === 'meetings'
+  const isAssistant = projectId === 'assistant'
+  const canReport = useCan('report:view')
+  const isReports = projectId === 'reports' && canReport
+  const unreadChats = useUnreadChats()
   const { data: rewards } = useRewards()
   const canExport = useCan('project:export')
   const current = projects.find((p) => p.id === projectId)
@@ -41,9 +51,9 @@ export default function Workspace() {
 
   // Land on the right page: members start on "My tasks", everyone else on the first project
   useEffect(() => {
-    if (isLoading || projectId === 'mine' || projectId === 'rewards' || projects.some((p) => p.id === projectId)) return
+    if (isLoading || projectId === 'mine' || projectId === 'rewards' || projectId === 'chat' || projectId === 'meetings' || isAssistant || isReports || projects.some((p) => p.id === projectId)) return
     select({ projectId: user.role === 'member' ? 'mine' : (projects[0]?.id ?? 'mine'), taskId: null })
-  }, [projects, projectId, isLoading, user.role])
+  }, [projects, projectId, isLoading, user.role, canReport])
 
   const submit = (e) => {
     e.preventDefault()
@@ -65,6 +75,29 @@ export default function Workspace() {
             <span className="flex-1">My tasks</span>
             {openMine > 0 && <span className="rounded-full bg-iris px-2 py-0.5 text-xs text-white">{openMine}</span>}
           </button>
+
+          <button onClick={() => select({ projectId: 'chat', taskId: null })} className={navClass(isChat)}>
+            <Icon name="chat" className="size-4 shrink-0 opacity-70" />
+            <span className="flex-1">Chat</span>
+            {unreadChats > 0 && <span className="rounded-full bg-iris px-2 py-0.5 text-xs text-white">{unreadChats > 99 ? '99+' : unreadChats}</span>}
+          </button>
+
+          <button onClick={() => select({ projectId: 'assistant', taskId: null })} className={navClass(isAssistant)}>
+            <Icon name="sparkles" className="size-4 shrink-0 opacity-70" />
+            <span className="flex-1">AI Assistant</span>
+          </button>
+
+          <button onClick={() => select({ projectId: 'meetings', taskId: null })} className={navClass(isMeetings)}>
+            <Icon name="video" className="size-4 shrink-0 opacity-70" />
+            <span className="flex-1">Meetings</span>
+          </button>
+
+          {canReport && (
+            <button onClick={() => select({ projectId: 'reports', taskId: null })} className={navClass(isReports)}>
+              <Icon name="chart" className="size-4 shrink-0 opacity-70" />
+              <span className="flex-1">Reports</span>
+            </button>
+          )}
 
           <button onClick={() => select({ projectId: 'rewards', taskId: null })} className={navClass(isRewards)}>
             <Icon name="trophy" className="size-4 shrink-0 opacity-70" />
@@ -106,7 +139,15 @@ export default function Workspace() {
       </aside>
 
       <main className="min-w-0 flex-1 p-5 md:p-10">
-        {isRewards ? (
+        {isChat ? (
+          <Chat />
+        ) : isAssistant ? (
+          <Assistant />
+        ) : isMeetings ? (
+          <Meetings />
+        ) : isReports ? (
+          <Reports />
+        ) : isRewards ? (
           <Rewards />
         ) : isMine || current ? (
           <>

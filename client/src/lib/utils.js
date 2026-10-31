@@ -29,3 +29,22 @@ export function timeAgo(iso) {
   if (s < 86400) return rtf.format(-Math.round(s / 3600), 'hour')
   return rtf.format(-Math.round(s / 86400), 'day')
 }
+
+// Chat helpers
+export const peerOf = (conv, meId) => conv.members.find((m) => m.id !== meId)
+export const convTitle = (conv, meId) => (conv.type === 'group' ? conv.name : (peerOf(conv, meId)?.name ?? 'Deleted user'))
+
+export const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+export const dayKey = (iso) => new Date(iso).toLocaleDateString('en-CA')
+
+export function dayLabel(iso) {
+  const key = dayKey(iso)
+  const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1)
+  if (key === todayStr()) return 'Today'
+  if (key === yesterday.toLocaleDateString('en-CA')) return 'Yesterday'
+  return new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
+// Conversation list: the time for today's messages, the date for older ones
+export const listTime = (iso) =>
+  dayKey(iso) === todayStr() ? clock(iso) : new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short' })

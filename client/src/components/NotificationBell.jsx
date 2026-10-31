@@ -32,6 +32,7 @@ export default function NotificationBell({ align = 'right' }) {
   const openItem = (n) => {
     if (!n.read) markOne.mutate(n.id)
     if (n.type === 'reward') { select({ projectId: 'rewards', taskId: null }); go('#/') }
+    else if (n.type === 'meeting') { select({ projectId: 'meetings', taskId: null }); go('#/') }
     else if (n.projectId) { select({ projectId: n.projectId, taskId: n.taskId ?? null }); go('#/') }
     setOpen(false)
   }

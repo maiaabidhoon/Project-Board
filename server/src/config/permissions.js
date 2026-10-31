@@ -15,6 +15,10 @@ export const PERMISSIONS = {
   'task:move:own': ['member', 'manager', 'admin'], // only tasks assigned to you
   'comment:create': ['manager', 'admin'], // any task
   'comment:create:own': ['member', 'manager', 'admin'],
+  'assistant:use': ['member', 'manager', 'admin'],
+  'meeting:create': ['member', 'manager', 'admin'],
+  'report:view': ['manager', 'admin'],
+  'chat:group:create': ['member', 'manager', 'admin'],
   'user:manage': ['admin'],
 }
 

@@ -6,18 +6,22 @@ import { asyncHandler } from '../utils/asyncHandler.js'
 
 export const signToken = (user) => jwt.sign({ id: user.id }, env.jwtSecret, { expiresIn: env.jwtExpires })
 
-// Verifies the token, then loads the user fresh so role changes and deactivation apply immediately
-export const authenticate = asyncHandler(async (req, _res, next) => {
-  const header = req.headers.authorization
-  if (!header?.startsWith('Bearer ')) throw new HttpError(401, 'Please sign in')
-
+// Verifies a token and loads the user fresh, so role changes and deactivation apply immediately.
+// Shared by the REST middleware below and the Socket.IO handshake.
+export async function userFromToken(token) {
   let payload
-  try { payload = jwt.verify(header.slice(7), env.jwtSecret) }
+  try { payload = jwt.verify(token, env.jwtSecret) }
   catch { throw new HttpError(401, 'Your session has expired. Please sign in again') }
 
   const user = await User.findById(payload.id).select('name email role active passwordChangedAt')
   const staleSession = user?.passwordChangedAt && payload.iat * 1000 < user.passwordChangedAt.getTime() - 1000
   if (!user?.active || staleSession) throw new HttpError(401, 'Please sign in again')
-  req.user = user
+  return user
+}
+
+export const authenticate = asyncHandler(async (req, _res, next) => {
+  const header = req.headers.authorization
+  if (!header?.startsWith('Bearer ')) throw new HttpError(401, 'Please sign in')
+  req.user = await userFromToken(header.slice(7))
   next()
 })

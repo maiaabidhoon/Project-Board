@@ -3,6 +3,7 @@ import { useStore } from '@tanstack/react-store'
 import { api } from './api'
 import { auth, clearSession, notify } from './store'
 import { go } from './router'
+import { chat, CONVERSATIONS, MESSAGES } from './chat'
 
 export const useMembers = () => useQuery({ queryKey: ['members'], queryFn: api.members })
 export const useProjects = () => useQuery({ queryKey: ['projects'], queryFn: api.projects })
@@ -18,6 +19,23 @@ export const useRewards = () =>
   useQuery({ queryKey: ['rewards', 'me'], queryFn: api.myRewards, refetchInterval: 30_000 })
 export const useLeaderboard = () =>
   useQuery({ queryKey: ['rewards', 'leaderboard'], queryFn: api.leaderboard, refetchInterval: 30_000 })
+
+// Chat: the socket pushes changes instantly, so polling is only a safety net (faster while the socket is down)
+export const useConversations = () => {
+  const connected = useStore(chat, (s) => s.connected)
+  return useQuery({ queryKey: CONVERSATIONS, queryFn: api.conversations, refetchInterval: connected ? 120_000 : 15_000 })
+}
+export const useUnreadChats = () => useConversations().data?.reduce((n, c) => n + c.unread, 0) ?? 0
+export const useMessages = (id) => {
+  const connected = useStore(chat, (s) => s.connected)
+  return useQuery({
+    queryKey: MESSAGES(id), queryFn: () => api.messages(id), enabled: !!id,
+    refetchOnWindowFocus: false, // would reset the scroll position of someone reading older messages
+    refetchInterval: connected ? false : 5_000,
+  })
+}
+export const useMeetings = () => useQuery({ queryKey: ['meetings'], queryFn: api.meetings, refetchInterval: 30_000 })
+export const useReport = () => useQuery({ queryKey: ['report'], queryFn: api.report, refetchInterval: 30_000 })
 export const useAdminUsers = () => useQuery({ queryKey: ['admin', 'users'], queryFn: api.adminUsers })
 export const useAdminStats = () => useQuery({ queryKey: ['admin', 'stats'], queryFn: api.adminStats })
 

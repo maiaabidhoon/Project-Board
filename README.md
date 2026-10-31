@@ -39,6 +39,29 @@ Small teams often run work through chat groups and spreadsheets. Tasks get lost,
 - The person who created a task is told when it is moved to Done or commented on
 - Automatic reminders for tasks due today or tomorrow, and for overdue tasks (each reminder is sent once)
 
+**Chat and groups** (real time, built on Socket.IO)
+- **Direct messages** with any teammate, and **group chats** that anyone can create (name the group, pick the people)
+- Messages appear instantly for everyone in the conversation, with **typing indicators**, **online presence** dots and **unread badges** (also on the sidebar's Chat entry)
+- Group owners can rename the group, add or remove people and delete the group; anyone can leave. If the owner leaves, the longest-standing member takes over
+- System lines in the thread record who created, renamed, added or removed ("Faizul added Arun")
+- People only see messages sent after they joined a group; older messages load 50 at a time
+- Private by design: the server only ever pushes a message to the members of its conversation, and non-members get a 404
+- If the live connection drops, the app falls back to normal HTTP requests and catches up automatically when it reconnects
+
+**AI Project Assistant** (OpenAI)
+- Ask questions in plain English: *what should I focus on today?*, *what is overdue?*, *summarize each project*, *draft my stand-up update*
+- Answers come from your team's real projects, tasks and meetings (the server sends the model a compact snapshot with every question), and can be narrowed to one project
+- Read-only: it cannot create or change anything. Your OpenAI key stays on the server (`server/.env`), requests are limited to 10 per minute per person, and the feature switches itself off when no key is set
+
+**Meetings** (basic)
+- Schedule a meeting with a title, date and time, duration, room or video link, optional project and agenda
+- Invite teammates: they get a notification, and again if the meeting is moved or cancelled
+- Each person sees only meetings they organize or are invited to; the organizer can add notes (minutes) afterwards and cancel the meeting
+
+**Reports** (managers and admins)
+- Totals for tasks, completion rate, overdue tasks, projects and upcoming meetings
+- Charts for tasks by status and priority, progress of each project, and workload per person
+
 **Rewards**
 - Earn **points** when a task assigned to you is completed: 10 / 20 / 30 for low / medium / high priority, **+10** if finished on or before the due date
 - **Levels** (Rookie, Contributor, Achiever, Pro, Legend) with a progress bar to the next one
@@ -80,6 +103,9 @@ Small teams often run work through chat groups and spreadsheets. Tasks get lost,
 | Update the checklist of tasks **assigned to them** | ✓ | ✓ | ✓ |
 | Update the checklist of **any** task | | ✓ | ✓ |
 | Export a project to CSV | | ✓ | ✓ |
+| Chat with teammates and create groups | ✓ | ✓ | ✓ |
+| Schedule meetings and invite people | ✓ | ✓ | ✓ |
+| View reports | | ✓ | ✓ |
 | Manage users and roles (Admin panel) | | | ✓ |
 
 All rules live in one file: `server/src/config/permissions.js`. Permissions ending in `:own` apply only to tasks assigned to the user.
@@ -100,6 +126,8 @@ Levels start at 0, 100, 300, 600 and 1000 points. All numbers live in `server/sr
 | Frontend | React 18, Vite, Tailwind CSS v4 |
 | State management | TanStack Query (server data), TanStack Store (UI state) |
 | Backend | Node.js, Express |
+| AI | OpenAI Chat Completions API (called from the server) |
+| Real time | Socket.IO (WebSockets with automatic fallback) |
 | Database | MongoDB with Mongoose |
 | Auth and validation | JWT, bcrypt, Zod |
 | Hardening | Helmet, rate limiting, compression, request size limits |
@@ -113,7 +141,12 @@ flowchart LR
   M1 --> M2[authenticate → role checker → validate]
   M2 --> R[Routes]
   R --> D[(MongoDB)]
+  B <-->|Socket.IO + JWT| W[Socket server<br/>same port]
+  W --> D
+  R -.->|push events| W
 ```
+
+The chat uses the same login token: the socket handshake is verified like a REST request, and every message sent over it re-checks that the session is still valid. Each user has a private room, and the server emits events only to the rooms of a conversation's members.
 
 Every protected request passes three checks in order: **authenticate** (valid token, user still active), **role checker** (`can('task:create')`) and **validate** (Zod schema), before it reaches the route handler.
 
@@ -133,7 +166,7 @@ npm start
 ```
 
 Open http://localhost:5173. The API runs on port 4000.
-To change settings (database address, secret key, timezone used for streaks), copy `server/.env.example` to `server/.env`.
+To change settings (database address, secret key, timezone used for streaks), copy `server/.env.example` to `server/.env`. To turn on the AI assistant, put your key in that file as `OPENAI_API_KEY=...` and restart the server (`OPENAI_MODEL` is optional; the default is `gpt-4o-mini`). Never commit `.env` (it is already in `.gitignore`).
 
 For a production-style run (one server for the API and the built app):
 
@@ -205,7 +238,33 @@ All routes are under `/api`. Everything except login needs `Authorization: Beare
 | `GET /rewards/leaderboard` | Any user | Ranking by points |
 | `GET /notifications` | Any user (own only) | Latest notifications and unread count |
 | `PATCH /notifications/:id/read`, `PATCH /notifications/read-all` | Any user (own only) | Mark as read |
+| `GET /chat/conversations` | Any user (own only) | My direct chats and groups, with last message and unread count |
+| `POST /chat/conversations` | Any user | Start a direct chat `{type:'dm', userId}` or create a group `{type:'group', name, memberIds}` |
+| `GET /chat/conversations/:id/messages?before=` | Members | Newest 50 messages, or the 50 before a message id |
+| `POST /chat/conversations/:id/messages` | Members | Send a message (HTTP fallback; the app normally uses the socket) |
+| `POST /chat/conversations/:id/read` | Members | Mark as read |
+| `PATCH /chat/conversations/:id`, `DELETE /chat/conversations/:id` | Group owner | Rename, delete a group |
+| `POST /chat/conversations/:id/members` | Group owner | Add people |
+| `DELETE /chat/conversations/:id/members/:userId` | Group owner, or yourself | Remove someone, or leave |
+| `POST /assistant/chat` | Any user | Ask the AI assistant `{messages, projectId?}` and get `{reply}` |
+| `GET /meetings` | Any user (own only) | Meetings I organize or am invited to |
+| `POST /meetings` | Any user | Schedule a meeting and invite people |
+| `PATCH /meetings/:id`, `DELETE /meetings/:id` | Organizer | Change (incl. notes) or cancel |
+| `GET /reports/overview` | Manager, Admin | Task, project and workload statistics |
 | `GET /admin/stats`, `GET/POST /admin/users`, `PATCH/DELETE /admin/users/:id` | Admin | User management |
+
+### Socket.IO events
+
+Connect with `io({ auth: { token } })`. Rate limited per connection.
+
+| Direction | Event | Purpose |
+|---|---|---|
+| Client → server | `message:send` `{conversationId, text}` | Send a message; the callback receives `{ok, message}` or `{ok:false, error}` |
+| Client → server | `typing` `{conversationId}` | "I'm typing" (the app throttles it) |
+| Server → client | `message:new` | A message was posted in one of your conversations |
+| Server → client | `conversation:changed` / `conversation:removed` / `conversation:read` | Membership or name changed; you were removed or the group was deleted; you read it in another tab |
+| Server → client | `typing` | Someone is typing in a conversation |
+| Server → client | `presence:list` / `presence:update` | Who is online |
 
 ## Project structure
 
@@ -213,16 +272,17 @@ All routes are under `/api`. Everything except login needs `Authorization: Beare
 ├── package.json            one-command scripts (npm start)
 ├── server/src
 │   ├── config/             env, database, permissions, reward rules
-│   ├── models/             User, Project, Task, Activity, Notification, Reward
+│   ├── models/             User, Project, Task, Activity, Notification, Reward, Conversation, Message, Meeting
 │   ├── middleware/         auth, roles (role checker), validate, error
-│   ├── routes/             auth, admin, members, projects, tasks, notifications
+│   ├── routes/             auth, admin, members, projects, tasks, notifications, rewards, chat, meetings, reports, assistant
+│   ├── socket.js           Socket.IO server (auth, sending, typing, presence)
 │   ├── schemas.js          Zod validation rules
-│   └── utils/              notify, reminders (due-date job), rewards, activity log, seed data
+│   └── utils/              notify, reminders (due-date job), rewards, activity log, seed data, chat service, realtime bridge
 └── client/src
     ├── lib/                api, store, hooks (incl. permission checker), router, helpers
-    ├── components/         Icon, Avatar, Brand, Toasts, RewardPopup, NotificationBell, AccountButton
+    ├── components/         Icon, Avatar, Brand, Toasts, RewardPopup, NotificationBell, AccountButton, Modal, ChatAvatar
     ├── pages/              Login, Workspace, Admin
-    └── features/           Board, TaskCard, TaskPanel, Activity, Rewards
+    └── features/           Board, TaskCard, TaskPanel, Activity, Rewards, Meetings, Reports, Assistant, chat/ (Chat, Thread, NewChat, GroupInfo)
 ```
 
 ## Security notes
@@ -231,13 +291,14 @@ All routes are under `/api`. Everything except login needs `Authorization: Beare
 - Permissions are enforced on the server for every request, including per task (a member can't touch a task assigned to someone else); the UI only hides buttons
 - Rewards can't be farmed: one reward per task, none for self-created tasks, and points are awarded by the server only
 - Notifications are private: every query is limited to the signed-in user
+- Chats are private: membership is checked on every read, send and typing event, messages are pushed only to members' rooms, and deactivating a user or changing a password closes their live connections
 - Login attempts are rate limited; all input is validated; request bodies are size limited
 - Role changes, deactivation and password changes apply immediately
 - In production the server refuses to start without `JWT_SECRET`
 
 ## Future scope
 
-Email and push delivery of notifications · file attachments · real-time updates with WebSockets · task subtasks and labels · calendar view · PDF reports · automated tests and CI pipeline
+Email and push delivery of notifications · file attachments · live board updates over the socket (boards still poll) · message editing, reactions and file sharing · task subtasks and labels · calendar view · PDF reports · automated tests and CI pipeline
 
 ## License
 

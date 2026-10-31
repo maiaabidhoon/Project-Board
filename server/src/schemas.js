@@ -51,3 +51,47 @@ export const checklistSchema = z.object({
   items: z.array(z.object({ text: text('Checklist item', 100), done: z.boolean().default(false) }))
     .max(20, 'A checklist can have up to 20 items'),
 })
+
+// Chat
+export const messageSchema = z.object({ text: text('Message', 2000) })
+export const socketMessageSchema = messageSchema.extend({ conversationId: objectId })
+
+const lowerId = objectId.transform((s) => s.toLowerCase())
+export const conversationCreateSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('dm'), userId: lowerId }),
+  z.object({
+    type: z.literal('group'),
+    name: text('Group name', 60),
+    memberIds: z.array(lowerId, { required_error: 'Pick at least one other member' })
+      .min(1, 'Pick at least one other member').max(49, 'A group can have up to 50 members'),
+  }),
+])
+export const groupRenameSchema = z.object({ name: text('Group name', 60) })
+export const addMembersSchema = z.object({ userIds: z.array(lowerId).min(1, 'Pick at least one person').max(49) })
+export const messagesQuerySchema = z.object({ before: objectId.optional() })
+
+// Meetings
+const when = z.string({ required_error: 'Pick a date and time' })
+  .refine((v) => !Number.isNaN(new Date(v).getTime()), 'Pick a valid date and time').transform((v) => new Date(v))
+
+export const meetingSchema = z.object({
+  title: text('Meeting title', 100),
+  description: z.string().trim().max(500, 'Description is too long').optional(),
+  startsAt: when,
+  durationMin: z.number().int().min(5, 'Meetings are at least 5 minutes').max(480, 'Meetings can be up to 8 hours').default(30),
+  location: z.string().trim().max(200, 'Location is too long').optional(),
+  projectId: objectId.nullable().optional(),
+  attendeeIds: z.array(objectId).max(50, 'Too many attendees').default([]),
+})
+
+export const meetingUpdateSchema = meetingSchema.partial().extend({ notes: z.string().trim().max(3000, 'Notes are too long').optional() })
+  .refine((b) => Object.keys(b).length > 0, 'Nothing to update')
+
+// AI assistant
+export const assistantSchema = z.object({
+  messages: z.array(z.object({
+    role: z.enum(['user', 'assistant']),
+    content: z.string().trim().min(1, 'Message is empty').max(2000, 'Message is too long (2000 characters max)'),
+  })).min(1).max(20),
+  projectId: objectId.nullable().optional(),
+}).refine((b) => b.messages.at(-1).role === 'user', 'The last message must be yours')

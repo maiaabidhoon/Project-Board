@@ -22,6 +22,13 @@ const PATHS = {
   download: 'M12 3v12M7 10l5 5 5-5M4 21h16',
   list: 'M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01',
   check: 'M5 12l5 5 9-10',
+  sparkles: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8zM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8z',
+  chart: 'M4 20V10M10 20V4M16 20v-7M22 20H2',
+  video: 'M23 7l-7 5 7 5zM1 5h15v14H1z',
+  users: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
+  send: 'M22 2 11 13M22 2l-7 20-4-9-9-4z',
+  info: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 16v-4M12 8h.01',
+  pencil: 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z',
 }
 
 export default function Icon({ name, className = 'size-4' }) {
