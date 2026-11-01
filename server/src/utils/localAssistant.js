@@ -16,7 +16,7 @@ const date = (d) => (d ? d.toLocaleDateString('en-GB', { day: 'numeric', month: 
 const list = (rows, empty) => (rows.length ? rows.slice(0, MAX_LINES).join('\n') + (rows.length > MAX_LINES ? `\n- …and ${rows.length - MAX_LINES} more` : '') : empty)
 
 export const HELP = [
-  'I\'m in basic mode, so I can answer these:',
+  'Habibi here, in basic mode. I can answer these:',
   '- "What should I focus on today?"',
   '- "Which tasks are overdue or due soon?"',
   '- "Summarize the status of every project."',
@@ -41,6 +41,10 @@ export async function localAnswer(user, question, projectId) {
     return `- ${t.title}${where}${who} — ${t.priority} priority, due ${date(t.dueDate)}`
   }
   const byUrgency = (a, b) => (a.dueDate?.getTime() ?? Infinity) - (b.dueDate?.getTime() ?? Infinity) || RANK[a.priority] - RANK[b.priority]
+
+  // Greetings and "who are you"
+  if (/^(hi|hii+|hello|hey|yo|namaste|salam|salaam|hola)\b/.test(q) || /who are you|your name|tum kaun|aap kaun|tera naam|tumhara naam|aapka naam/.test(q))
+    return `Hi ${user.name.split(' ')[0]}! I'm Habibi, your project buddy. Ask me what to focus on, what is overdue, or for a project summary.`
 
   // Overdue / deadlines
   if (has(q, 'overdue', 'late', 'due', 'deadline', 'behind', 'risk')) {

@@ -1,7 +1,8 @@
 import { env } from '../config/env.js'
 import Reward from '../models/Reward.js'
 import User from '../models/User.js'
-import { POINTS, ON_TIME_BONUS, BADGES, levelFor } from '../config/rewards.js'
+import { BADGES, levelFor } from '../config/rewards.js'
+import { getRewardRules } from './rewardRules.js'
 import { notifyMany } from './notify.js'
 
 export const dayOf = (date) => date.toLocaleDateString('en-CA', { timeZone: env.timezone }) // YYYY-MM-DD
@@ -17,7 +18,8 @@ export async function awardCompletion(task) {
 
   const now = new Date()
   const onTime = !!task.dueDate && dayOf(now) <= task.dueDate.toISOString().slice(0, 10)
-  const points = POINTS[task.priority] + (onTime ? ON_TIME_BONUS : 0)
+  const rules = await getRewardRules() // point values the admin can change
+  const points = rules[task.priority] + (onTime ? rules.onTimeBonus : 0)
 
   try {
     await Reward.create({ userId, taskId: task._id, projectId: task.projectId, title: task.title, priority: task.priority, points, onTime })

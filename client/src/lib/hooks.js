@@ -67,6 +67,14 @@ export const useAttendanceDay = (date, enabled) =>
 export const useAttendanceMonth = (month, enabled) =>
   useQuery({ queryKey: ['attendance', 'month', month], queryFn: () => api.attendanceMonth(month), enabled })
 export const useAdminUsers = () => useQuery({ queryKey: ['admin', 'users'], queryFn: api.adminUsers })
+export const useDashboard = () => {
+  const every = useLive(30_000)
+  return useQuery({ queryKey: ['admin', 'dashboard'], queryFn: () => api.adminDashboard(), refetchInterval: every })
+}
+export const useAdminRewards = () => useQuery({ queryKey: ['admin', 'rewards'], queryFn: () => api.adminRewards() })
+export const useRewardRules = () => useQuery({ queryKey: ['rewards', 'rules'], queryFn: () => api.rewardRules(), staleTime: 5 * 60_000 })
+export const useAnnouncements = () => useQuery({ queryKey: ['announcements'], queryFn: () => api.announcements() })
+export const useCalendar = (month) => useQuery({ queryKey: ['tasks', 'calendar', month], queryFn: () => api.calendar(month) })
 export const useAdminStats = () => useQuery({ queryKey: ['admin', 'stats'], queryFn: api.adminStats })
 
 /** Role checker: does the signed-in user hold this permission? (list comes from the server) */

@@ -17,6 +17,8 @@ import Meetings from '../features/Meetings'
 import Reports from '../features/Reports'
 import Assistant from '../features/Assistant'
 import Attendance from '../features/Attendance'
+import Announcements, { AnnouncementBanner } from '../features/Announcements'
+import Calendar from '../features/Calendar'
 
 const navClass = (active) =>
   `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
@@ -43,6 +45,8 @@ export default function Workspace() {
   const isMeetings = projectId === 'meetings'
   const isAssistant = projectId === 'assistant'
   const isAttendance = projectId === 'attendance'
+  const isAnnouncements = projectId === 'announcements'
+  const isCalendar = projectId === 'calendar'
   const canReport = useCan('report:view')
   const isReports = projectId === 'reports' && canReport
   const unreadChats = useUnreadChats()
@@ -53,7 +57,7 @@ export default function Workspace() {
 
   // Land on the right page: members start on "My tasks", everyone else on the first project
   useEffect(() => {
-    if (isLoading || projectId === 'mine' || projectId === 'rewards' || projectId === 'chat' || projectId === 'meetings' || isAssistant || isAttendance || isReports || projects.some((p) => p.id === projectId)) return
+    if (isLoading || projectId === 'mine' || projectId === 'rewards' || projectId === 'chat' || projectId === 'meetings' || isAssistant || isAttendance || isAnnouncements || isCalendar || isReports || projects.some((p) => p.id === projectId)) return
     select({ projectId: user.role === 'member' ? 'mine' : (projects[0]?.id ?? 'mine'), taskId: null })
   }, [projects, projectId, isLoading, user.role, canReport])
 
@@ -86,7 +90,17 @@ export default function Workspace() {
 
           <button onClick={() => select({ projectId: 'assistant', taskId: null })} className={navClass(isAssistant)}>
             <Icon name="sparkles" className="size-4 shrink-0 opacity-70" />
-            <span className="flex-1">AI Assistant</span>
+            <span className="flex-1">Habibi</span>
+          </button>
+
+          <button onClick={() => select({ projectId: 'announcements', taskId: null })} className={navClass(isAnnouncements)}>
+            <Icon name="megaphone" className="size-4 shrink-0 opacity-70" />
+            <span className="flex-1">Announcements</span>
+          </button>
+
+          <button onClick={() => select({ projectId: 'calendar', taskId: null })} className={navClass(isCalendar)}>
+            <Icon name="calendar" className="size-4 shrink-0 opacity-70" />
+            <span className="flex-1">Calendar</span>
           </button>
 
           <button onClick={() => select({ projectId: 'attendance', taskId: null })} className={navClass(isAttendance)}>
@@ -146,12 +160,17 @@ export default function Workspace() {
       </aside>
 
       <main className="min-w-0 flex-1 p-5 md:p-10">
+        {!isChat && !isAssistant && !isAnnouncements && <AnnouncementBanner />}
         {isChat ? (
           <Chat />
         ) : isAssistant ? (
           <Assistant />
         ) : isAttendance ? (
           <Attendance />
+        ) : isAnnouncements ? (
+          <Announcements />
+        ) : isCalendar ? (
+          <Calendar />
         ) : isMeetings ? (
           <Meetings />
         ) : isReports ? (

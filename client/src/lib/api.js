@@ -30,6 +30,16 @@ function recent(messages) {
   return out
 }
 
+// Download a file the server generates (needs the sign-in token, so it can't be a plain link)
+async function download(path, fallbackName) {
+  const res = await fetch(`${API_URL}/api${path}`, { headers: { Authorization: `Bearer ${auth.state.token}` } })
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Download failed')
+  const file = /filename="(.+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? fallbackName
+  const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await res.blob()), download: file })
+  link.click()
+  URL.revokeObjectURL(link.href)
+}
+
 export const api = {
   login: (email, password) => req('/auth/login', { method: 'POST', body: { email, password } }),
   me: () => req('/auth/me'),
@@ -84,14 +94,21 @@ export const api = {
 
   myRewards: () => req('/rewards/me'),
   leaderboard: () => req('/rewards/leaderboard'),
-  exportProject: async (id) => {
-    const res = await fetch(`${API_URL}/api/projects/${id}/export`, { headers: { Authorization: `Bearer ${auth.state.token}` } })
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Export failed')
-    const file = /filename="(.+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'tasks.csv'
-    const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await res.blob()), download: file })
-    link.click()
-    URL.revokeObjectURL(link.href)
-  },
+  exportProject: (id) => download(`/projects/${id}/export`, 'tasks.csv'),
+  exportAttendance: (month) => download(`/attendance/export?month=${month}`, 'attendance.csv'),
+
+  calendar: (month) => req(`/tasks/calendar?month=${month}`),
+  rewardRules: () => req('/rewards/rules'),
+  announcements: () => req('/announcements'),
+  postAnnouncement: (body) => req('/announcements', { method: 'POST', body }),
+  pinAnnouncement: ({ id, pinned }) => req(`/announcements/${id}`, { method: 'PATCH', body: { pinned } }),
+  deleteAnnouncement: (id) => req(`/announcements/${id}`, { method: 'DELETE' }),
+
+  adminDashboard: () => req('/admin/dashboard'),
+  adminRewards: () => req('/admin/rewards'),
+  saveRewardRules: (rules) => req('/admin/rewards/rules', { method: 'PUT', body: rules }),
+  adjustPoints: (body) => req('/admin/rewards/adjust', { method: 'POST', body }),
+  resetRewards: (userId) => req(`/admin/rewards/reset/${userId}`, { method: 'POST' }),
 
   adminStats: () => req('/admin/stats'),
   adminUsers: () => req('/admin/users'),

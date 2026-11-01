@@ -47,7 +47,7 @@ router.post('/otp', can('attendance:send'), validate(otpSendSchema), asyncHandle
     conversationId: conv.id, recipientIds: everyone, botName: OTP_CHAT_NAME,
     text: `Attendance OTP for ${pretty(day)}: ${code}\nValid for ${req.body.validMinutes} minutes (until ${clock(expiresAt)}). Enter it below to mark your attendance.`,
   })
-  sync([['attendance']])
+  sync([['attendance'], ['admin']])
   res.status(201).json({ day, code, expiresAt })
 }))
 
@@ -71,7 +71,7 @@ router.post('/mark', markLimiter, can('attendance:mark'), validate(otpEntrySchem
     already = true // two submissions at the same instant
   }
   const record = await Attendance.findOne({ userId: req.user.id, day })
-  if (!already) sync([['attendance']])
+  if (!already) sync([['attendance'], ['admin']])
   res.json({ day, already, markedAt: record.markedAt })
 }))
 
@@ -120,6 +120,31 @@ router.get('/month', can('attendance:view'), validate(attendanceMonthSchema, 'qu
   ])
   const count = Object.fromEntries(grouped.map((g) => [String(g._id), g.days]))
   res.json({ month, daysTaken, people: users.map((u) => ({ id: u.id, name: u.name, role: u.role, days: count[u.id] ?? 0 })) })
+}))
+
+// Managers and admins: a month as a spreadsheet (P = present, A = absent, for each day an OTP was sent)
+const cell = (v) => {
+  let s = v == null ? '' : String(v)
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}` // stop Excel from running a name as a formula
+  return `"${s.replace(/"/g, '""')}"`
+}
+router.get('/export', can('attendance:view'), validate(attendanceMonthSchema, 'query'), asyncHandler(async (req, res) => {
+  const month = monthOf(req.query)
+  const [users, rows, codes] = await Promise.all([
+    User.find({ active: true }).select('name email').sort('name'),
+    Attendance.find({ day: monthRange(month) }),
+    AttendanceCode.find({ day: monthRange(month) }).select('day').sort('day'),
+  ])
+  const days = codes.map((c) => c.day)
+  const present = new Set(rows.map((r) => `${r.userId}:${r.day}`))
+  const table = [['Name', 'Email', ...days, 'Days present', 'Days taken']]
+  for (const u of users) {
+    const marks = days.map((d) => (present.has(`${u.id}:${d}`) ? 'P' : 'A'))
+    table.push([u.name, u.email, ...marks, marks.filter((m) => m === 'P').length, days.length])
+  }
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="attendance-${month}.csv"`)
+  res.send('\ufeff' + table.map((r) => r.map(cell).join(',')).join('\r\n'))
 }))
 
 export default router

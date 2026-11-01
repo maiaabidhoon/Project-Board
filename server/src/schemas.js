@@ -104,3 +104,21 @@ export const otpEntrySchema = z.object({ otp: z.string({ required_error: 'Enter 
 export const otpSendSchema = z.object({ validMinutes: z.number().int().min(5, 'At least 5 minutes').max(240, 'At most 4 hours').default(30) })
 export const attendanceDaySchema = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date').refine(isRealDate, 'Use a valid date').optional() })
 export const attendanceMonthSchema = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Use a month like 2026-11').optional() })
+
+// Reward management (admin)
+const points = (label) => z.number({ required_error: `${label} is required`, invalid_type_error: `${label} must be a number` }).int(`${label} must be a whole number`).min(0, `${label} can't be negative`).max(1000, `${label} is at most 1000`)
+export const rewardRulesSchema = z.object({ low: points('Low priority points'), medium: points('Medium priority points'), high: points('High priority points'), onTimeBonus: points('On-time bonus') })
+export const rewardAdjustSchema = z.object({
+  userId: objectId,
+  points: z.number({ required_error: 'Enter the points', invalid_type_error: 'Points must be a number' }).int('Points must be a whole number')
+    .refine((n) => n !== 0, 'Points can\'t be zero').refine((n) => Math.abs(n) <= 10000, 'At most 10000 points at a time'),
+  reason: text('Reason', 140),
+})
+
+// Announcements
+export const announcementSchema = z.object({
+  title: text('Title', 100),
+  body: z.string().trim().max(1500, 'The message is too long (1500 characters max)').optional(),
+  pinned: z.boolean().default(false),
+})
+export const announcementPinSchema = z.object({ pinned: z.boolean({ required_error: 'Say whether to pin it' }) })

@@ -1,15 +1,16 @@
-import { useRewards, useLeaderboard, usePerms } from '../lib/hooks'
+import { useRewards, useLeaderboard, useRewardRules, usePerms } from '../lib/hooks'
 import { BADGE_ICON } from '../lib/constants'
 import { colorFor, timeAgo } from '../lib/utils'
 import Avatar from '../components/Avatar'
 import Icon from '../components/Icon'
 
 const RANK_STYLE = ['bg-amber-100 text-amber-700', 'bg-slate-200 text-slate-600', 'bg-orange-100 text-orange-700']
-const RULES = [['Low priority task', '+10'], ['Medium priority task', '+20'], ['High priority task', '+30'], ['Finished on or before the due date', '+10']]
+const rulesList = (r) => [['Low priority task', `+${r.low}`], ['Medium priority task', `+${r.medium}`], ['High priority task', `+${r.high}`], ['Finished on or before the due date', `+${r.onTimeBonus}`]]
 
 export default function Rewards() {
   const { data } = useRewards()
   const { data: board = [] } = useLeaderboard()
+  const { data: rules } = useRewardRules()
   const { user } = usePerms()
   if (!data) return <p className="text-muted">Loading rewards…</p>
   const { stats, level, badges, history } = data
@@ -94,7 +95,7 @@ export default function Rewards() {
           <section className="rounded-2xl bg-white p-5">
             <h3 className="mb-3 font-display text-lg font-semibold">How to earn points</h3>
             <ul className="space-y-2 text-sm">
-              {RULES.map(([rule, pts]) => <li key={rule} className="flex justify-between gap-3"><span>{rule}</span><span className="font-medium text-iris">{pts}</span></li>)}
+              {rulesList(rules ?? { low: 10, medium: 20, high: 30, onTimeBonus: 10 }).map(([rule, pts]) => <li key={rule} className="flex justify-between gap-3"><span>{rule}</span><span className="font-medium text-iris">{pts}</span></li>)}
             </ul>
             <p className="mt-4 text-xs leading-relaxed text-muted">Points go to the person the task is assigned to, once per task. Tasks you created for yourself don't earn points. A streak counts days in a row with at least one finished task.</p>
           </section>

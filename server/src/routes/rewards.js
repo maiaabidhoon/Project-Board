@@ -4,6 +4,7 @@ import Reward from '../models/Reward.js'
 import { BADGES, levelFor } from '../config/rewards.js'
 import { dayOf } from '../utils/rewards.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
+import { getRewardRules } from '../utils/rewardRules.js'
 
 const router = Router()
 
@@ -28,6 +29,9 @@ router.get('/me', asyncHandler(async (req, res) => {
     history,
   })
 }))
+
+// How many points each kind of task is worth (set by the admin)
+router.get('/rules', asyncHandler(async (_req, res) => res.json(await getRewardRules())))
 
 // Everyone active, highest points first
 router.get('/leaderboard', asyncHandler(async (_req, res) => {

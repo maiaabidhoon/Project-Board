@@ -18,7 +18,7 @@ router.get('/', asyncHandler(async (_req, res) => res.json(await Project.find().
 
 router.post('/', can('project:create'), validate(projectSchema), asyncHandler(async (req, res) => {
   const project = await Project.create(req.body)
-  sync([['projects'], ['report']])
+  sync([['projects'], ['report'], ['admin']])
   res.status(201).json(project)
 }))
 
@@ -26,7 +26,7 @@ router.delete('/:id', can('project:delete'), asyncHandler(async (req, res) => {
   const project = await Project.findByIdAndDelete(req.params.id)
   if (!project) throw new HttpError(404, 'Project not found')
   await Promise.all([Task.deleteMany({ projectId: project.id }), Activity.deleteMany({ projectId: project.id })])
-  sync([['projects'], ['tasks'], ['report']])
+  sync([['projects'], ['tasks'], ['report'], ['admin']])
   res.status(204).end()
 }))
 
@@ -36,7 +36,7 @@ router.get('/:id/tasks', asyncHandler(async (req, res) =>
 router.post('/:id/tasks', can('task:create'), validate(taskCreateSchema), asyncHandler(async (req, res) => {
   if (!(await Project.exists({ _id: req.params.id }))) throw new HttpError(404, 'Project not found')
   const task = await Task.create({ projectId: req.params.id, title: req.body.title, createdBy: req.user.id })
-  sync([['tasks'], ['report']])
+  sync([['tasks'], ['report'], ['admin']])
   logActivity(task.projectId, req.user.id, `created “${task.title}”`)
   res.status(201).json(task)
 }))

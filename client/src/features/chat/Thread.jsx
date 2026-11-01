@@ -5,7 +5,7 @@ import { api } from '../../lib/api'
 import { notify } from '../../lib/store'
 import { chat, openConversation, sendMessage, emitTyping, appendMessage, zeroUnread, MESSAGES } from '../../lib/chat'
 import { useMessages, usePerms } from '../../lib/hooks'
-import { clock, colorFor, convTitle, dayKey, dayLabel, peerOf } from '../../lib/utils'
+import { clock, colorFor, convTitle, dayKey, dayLabel, peerOf, timeAgo } from '../../lib/utils'
 import ChatAvatar from '../../components/ChatAvatar'
 import Icon from '../../components/Icon'
 import GroupInfo from './GroupInfo'
@@ -13,13 +13,27 @@ import { OtpEntry, SendOtp } from '../attendance/Otp'
 
 const CLUSTER_MS = 5 * 60 * 1000 // messages from one person within 5 minutes read as a single block
 
+// What to say under a person's name. We only claim "Offline" when we are sure: if our own connection is down or the
+// online list has not arrived yet, we cannot know, and guessing in either direction would be wrong.
+function presenceText({ connected, presenceKnown, peerOnline, seenAt }) {
+  if (!connected) return 'Connecting…'
+  if (!presenceKnown) return ''
+  if (peerOnline) return 'Online'
+  return seenAt ? `Offline · last seen ${timeAgo(seenAt)}` : 'Offline'
+}
+
 export default function Thread({ conv }) {
   const qc = useQueryClient()
   const { user, can } = usePerms()
   const { data, isLoading, isError } = useMessages(conv.id)
   const connected = useStore(chat, (s) => s.connected)
   const typingNow = useStore(chat, (s) => s.typing[conv.id])
-  const peerOnline = useStore(chat, (s) => (conv.type === 'dm' ? !!s.online[peerOf(conv, user.id)?.id] : false))
+  const peer = conv.type === 'dm' ? peerOf(conv, user.id) : null
+  const peerOnline = useStore(chat, (s) => !!peer && !!s.online[peer.id])
+  const presenceKnown = useStore(chat, (s) => s.presenceKnown)
+  const seenAt = useStore(chat, (s) => (peer && s.lastSeen[peer.id]) || peer?.lastSeenAt || null) // live value beats the one loaded earlier
+  const [, setTick] = useState(0)
+  useEffect(() => { const t = setInterval(() => setTick((n) => n + 1), 30_000); return () => clearInterval(t) }, []) // keeps "last seen 5 minutes ago" honest
   const [text, setText] = useState('')
   const [info, setInfo] = useState(false)
   const [loadingOlder, setLoadingOlder] = useState(false)
@@ -92,7 +106,7 @@ export default function Thread({ conv }) {
 
   const subtitle = typers.length
     ? <span className="text-iris">{conv.type === 'dm' ? 'typing…' : `${typers.join(', ')} typing…`}</span>
-    : conv.type === 'dm' ? (peerOnline ? 'Online' : 'Offline') : conv.type === 'otp' ? 'Daily attendance · read-only' : `${conv.members.length} members`
+    : conv.type === 'dm' ? presenceText({ connected, presenceKnown, peerOnline, seenAt }) : conv.type === 'otp' ? 'Daily attendance · read-only' : `${conv.members.length} members`
 
   return (
     <>
@@ -108,7 +122,13 @@ export default function Thread({ conv }) {
         )}
       </header>
 
-      {!connected && <p className="bg-amber-50 px-4 py-1.5 text-center text-xs text-amber-800">Reconnecting… messages still send, but may arrive a little slower.</p>}
+      {!connected && (
+        <p className="bg-amber-50 px-4 py-1.5 text-center text-xs text-amber-800">
+          {navigator.onLine
+            ? 'Reconnecting… messages still send, but may arrive a little slower. Online status is hidden until we are back.'
+            : "You're offline. Check your internet connection: messages can't be sent until you're back online."}
+        </p>
+      )}
 
       <div ref={scroller} onScroll={(e) => { const el = e.currentTarget; stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80 }}
         className="flex-1 overflow-y-auto px-4 py-4">

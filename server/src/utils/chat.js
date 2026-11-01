@@ -17,7 +17,7 @@ export const messageView = (m) => ({
   at: m.at,
 })
 
-// conv must have members.userId populated (name, role, active)
+// conv must have members.userId populated (name, role, active, lastSeenAt)
 export const conversationView = (conv, unread = 0) => ({
   id: conv.id,
   type: conv.type,
@@ -25,7 +25,7 @@ export const conversationView = (conv, unread = 0) => ({
   ownerId: conv.ownerId ? String(conv.ownerId) : null,
   members: conv.type === 'otp' ? [] : conv.members
     .filter((m) => m.userId)
-    .map((m) => ({ id: m.userId.id, name: m.userId.name, role: m.userId.role, active: m.userId.active })),
+    .map((m) => ({ id: m.userId.id, name: m.userId.name, role: m.userId.role, active: m.userId.active, lastSeenAt: m.userId.lastSeenAt ?? null })),
   lastMessage: conv.lastMessage?.at
     ? {
         text: conv.lastMessage.text,
@@ -39,7 +39,7 @@ export const conversationView = (conv, unread = 0) => ({
   unread,
 })
 
-const populateMembers = (query) => query.populate('members.userId', 'name role active')
+const populateMembers = (query) => query.populate('members.userId', 'name role active lastSeenAt')
 
 function unreadFor(conv, userId) {
   const me = conv.members.find((m) => sameId(m.userId, userId))

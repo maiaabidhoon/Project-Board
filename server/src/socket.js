@@ -3,11 +3,16 @@ import { corsOrigin } from './config/env.js'
 import { userFromToken } from './middleware/auth.js'
 import { socketMessageSchema } from './schemas.js'
 import Conversation from './models/Conversation.js'
+import User from './models/User.js'
 import { HttpError } from './utils/HttpError.js'
 import { memberIds, postMessage } from './utils/chat.js'
 import { emitToUsers, presence, setIO } from './utils/realtime.js'
 
 const OBJECT_ID = /^[a-f\d]{24}$/i
+
+// Remember when someone was last connected. Never allowed to break the connection if the database hiccups.
+const touchLastSeen = (userId, at) =>
+  User.updateOne({ _id: userId }, { lastSeenAt: at }, { timestamps: false }).catch((err) => console.error('lastSeen update failed:', err.message))
 
 // Allows `max` events per 10 seconds, per connection
 const limiter = (max) => {
@@ -25,13 +30,17 @@ const limiter = (max) => {
  * receive a conversation they don't belong to.
  *
  * Server -> client: message:new, conversation:changed, conversation:removed, conversation:read,
- *                   typing, presence:list, presence:update
+ *                   typing, presence:list, presence:update ({ userId, online, lastSeenAt? })
  * Client -> server: message:send (with acknowledgement), typing
  */
 export function initSocket(httpServer) {
   const io = new Server(httpServer, {
     cors: { origin: corsOrigin },
     maxHttpBufferSize: 16 * 1024, // messages are short text, so refuse anything big
+    // A phone that loses signal or a laptop that goes to sleep never says goodbye; the server only finds out when its
+    // heartbeat goes unanswered. The defaults (25s + 20s) left people showing as online for up to 45 seconds.
+    pingInterval: 10_000,
+    pingTimeout: 8_000,
   })
   setIO(io)
 
@@ -54,7 +63,10 @@ export function initSocket(httpServer) {
 
     socket.join(`user:${user.id}`)
     socket.emit('presence:list', presence.list())
-    if (presence.add(user.id)) socket.broadcast.emit('presence:update', { userId: user.id, online: true })
+    if (presence.add(user.id)) {
+      socket.broadcast.emit('presence:update', { userId: user.id, online: true })
+      touchLastSeen(user.id, new Date()) // a floor for "last seen" in case the server dies before they disconnect cleanly
+    }
 
     socket.on('message:send', async (data, ack) => {
       const reply = typeof ack === 'function' ? ack : () => {}
@@ -91,7 +103,10 @@ export function initSocket(httpServer) {
     })
 
     socket.on('disconnect', () => {
-      if (presence.remove(user.id)) io.emit('presence:update', { userId: user.id, online: false })
+      if (!presence.remove(user.id)) return // another tab of theirs is still connected, so they are still online
+      const lastSeenAt = new Date()
+      io.emit('presence:update', { userId: user.id, online: false, lastSeenAt })
+      touchLastSeen(user.id, lastSeenAt)
     })
   })
 

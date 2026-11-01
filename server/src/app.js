@@ -23,6 +23,7 @@ import meetingRoutes from './routes/meetings.js'
 import reportRoutes from './routes/reports.js'
 import assistantRoutes from './routes/assistant.js'
 import attendanceRoutes from './routes/attendance.js'
+import announcementRoutes from './routes/announcements.js'
 
 const app = express()
 app.disable('x-powered-by')
@@ -62,6 +63,7 @@ app.use('/api/rewards', authenticate, rewardRoutes)
 app.use('/api/chat', authenticate, chatRoutes)
 app.use('/api/meetings', authenticate, meetingRoutes)
 app.use('/api/attendance', authenticate, attendanceRoutes)
+app.use('/api/announcements', authenticate, announcementRoutes)
 app.use('/api/assistant', authenticate, can('assistant:use'), assistantRoutes)
 app.use('/api/reports', authenticate, can('report:view'), reportRoutes)
 app.use('/api', notFound)

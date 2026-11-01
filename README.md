@@ -329,6 +329,22 @@ Every person has a read-only chat called **Project Board OTP**, plus an **Attend
 
 Rules: one OTP per day (sending a new one stops the old one working); days follow `TIMEZONE`; after 8 wrong tries a person must wait 10 minutes. The OTP is visible to everyone in the chat, so it proves someone *has the code*, not that they are physically present: keep the validity short, and send it when people are actually at work.
 
+## Habibi (AI assistant) and voice chat
+
+The assistant is called **Habibi**. Without an `OPENAI_API_KEY` it runs in basic mode.
+
+**Voice chat:** press *Voice chat* on the Habibi screen, allow the microphone, and talk. Habibi answers out loud and then listens again; tap the big button to finish speaking or to interrupt. The mic next to the text box dictates a question instead, and the speaker icon on any answer reads it aloud. It uses the browser's built-in speech features (free, no server): listening works in Chrome, Edge and Safari, not Firefox; Hindi needs a Hindi voice installed on the device.
+
 ## AI Assistant history
 
 A conversation with the assistant has no message limit. The app sends the most recent part of it with each question and the model reads the latest 20 messages, so long chats stay fast and cheap. The only remaining limit is 10 questions per minute per person.
+
+## Admin dashboard and reward management (admin only)
+
+Open **Admin** in the sidebar. **Dashboard** shows live charts: team and online count, open/overdue tasks, task activity over 14 days, attendance per day, status and priority split, project progress, who is busiest, top performers and latest activity. **Rewards** lets the admin change what tasks are worth, give or take points with a reason (the person is notified), and reset someone's rewards. Both are enforced on the server, not just hidden in the UI.
+
+## More collaboration features
+
+- **Announcements:** managers and admins post team-wide news (optionally pinned); everyone is notified and sees a banner.
+- **Calendar:** a month view of task due dates and meetings; click a day, then a task to open it.
+- **Attendance export:** managers and admins can download a month of attendance as a spreadsheet.

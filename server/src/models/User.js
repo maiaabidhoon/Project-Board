@@ -21,6 +21,7 @@ const userSchema = new mongoose.Schema(
       badges: [{ _id: false, key: String, at: Date }],
     },
     passwordChangedAt: { type: Date }, // older sessions stop working after a password change
+    lastSeenAt: { type: Date, default: null }, // when their last chat connection closed, shown as "last seen" while they are offline
   },
   { timestamps: true, toJSON },
 )

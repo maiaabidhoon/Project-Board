@@ -3,12 +3,12 @@ import Task from '../models/Task.js'
 import User from '../models/User.js'
 import { can, canActOn, hasPermission } from '../middleware/roles.js'
 import { validate, validId } from '../middleware/validate.js'
-import { checklistSchema, commentSchema, taskUpdateSchema } from '../schemas.js'
+import { checklistSchema, commentSchema, taskUpdateSchema, attendanceMonthSchema } from '../schemas.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HttpError } from '../utils/HttpError.js'
 import { logActivity } from '../utils/activity.js'
 import { notifyMany } from '../utils/notify.js'
-import { awardCompletion } from '../utils/rewards.js'
+import { awardCompletion, dayOf } from '../utils/rewards.js'
 import { sync } from '../utils/realtime.js'
 
 const router = Router()
@@ -20,6 +20,16 @@ const forbidden = () => new HttpError(403, 'You do not have permission to do thi
 
 // Recipients without duplicates, empty values, or the person who did the action
 const others = (actor, ids) => [...new Set(ids.filter(Boolean).map(String))].filter((id) => id !== String(actor.id))
+
+// Calendar: every task with a due date in a month (everyone can already see all projects, so this exposes nothing new)
+router.get('/calendar', validate(attendanceMonthSchema, 'query'), asyncHandler(async (req, res) => {
+  const month = req.query.month ?? dayOf(new Date()).slice(0, 7)
+  const [y, m] = month.split('-').map(Number)
+  const from = new Date(Date.UTC(y, m - 1, 1))
+  const to = new Date(Date.UTC(y, m, 1)) // first moment of the next month
+  const tasks = await Task.find({ dueDate: { $gte: from, $lt: to } }).select('title status priority dueDate assigneeId projectId').sort('dueDate')
+  res.json({ month, tasks })
+}))
 
 // Everything assigned to the signed-in user, across all projects
 router.get('/mine', asyncHandler(async (req, res) =>
@@ -71,7 +81,7 @@ router.patch('/:id', validate(taskUpdateSchema), asyncHandler(async (req, res) =
   }
 
   // Only the person who earned the points sees the celebration; everyone else finds out via notifications
-  sync([['tasks'], ['report']] .concat(reward ? [['rewards']] : []))
+  sync([['tasks'], ['report'], ['admin']] .concat(reward ? [['rewards']] : []))
   const body = task.toJSON()
   if (reward && reward.userId === String(req.user.id)) body.reward = reward
   res.json(body)
@@ -90,7 +100,7 @@ router.put('/:id/checklist', validate(checklistSchema), asyncHandler(async (req,
 router.delete('/:id', can('task:delete'), asyncHandler(async (req, res) => {
   const task = await Task.findByIdAndDelete(req.params.id)
   if (!task) throw new HttpError(404, 'Task not found')
-  sync([['tasks'], ['report']])
+  sync([['tasks'], ['report'], ['admin']])
   logActivity(task.projectId, req.user.id, `deleted “${task.title}”`)
   notifyMany(others(req.user, [task.assigneeId]), {
     type: 'task', projectId: task.projectId, message: `${req.user.name} deleted “${task.title}”, which was assigned to you`,

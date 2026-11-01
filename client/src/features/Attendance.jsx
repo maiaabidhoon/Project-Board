@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useAttendanceToday, useAttendanceMe, useAttendanceDay, useAttendanceMonth, useCan } from '../lib/hooks'
 import { clock, todayStr } from '../lib/utils'
-import { select } from '../lib/store'
+import { select, notify } from '../lib/store'
+import { api } from '../lib/api'
 import Avatar from '../components/Avatar'
 import Icon from '../components/Icon'
 import { OtpEntry, SendOtp } from './attendance/Otp'
@@ -43,6 +44,7 @@ export default function Attendance() {
                 <h3 className="font-display text-lg font-semibold">
                   Who is in{roster && <span className="ml-2 text-sm font-normal text-muted">{roster.present} of {roster.total} present</span>}
                 </h3>
+                <button onClick={() => api.exportAttendance(month).catch((e) => notify(e.message))} className="btn btn-ghost px-3 py-2"><Icon name="download" />Export {month}</button>
                 <input type="date" value={date} max={serverDay} onChange={(e) => setDate(e.target.value)} aria-label="Date" className="input w-auto py-2" />
               </div>
               {roster && !roster.otpSent && <p className="mb-3 rounded-lg bg-canvas px-3 py-2 text-sm text-muted">No OTP was sent on this day, so no attendance was taken.</p>}

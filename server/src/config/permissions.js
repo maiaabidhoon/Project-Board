@@ -22,6 +22,7 @@ export const PERMISSIONS = {
   'attendance:mark': ['member', 'manager', 'admin'], // enter the daily OTP
   'attendance:send': ['admin'], // generate and send the daily OTP
   'attendance:view': ['manager', 'admin'], // see everyone's attendance
+  'announcement:post': ['manager', 'admin'],
   'user:manage': ['admin'],
 }
 
