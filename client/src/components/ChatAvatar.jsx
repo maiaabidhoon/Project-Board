@@ -12,6 +12,8 @@ export function OnlineDot({ userId }) {
 
 // A person's avatar for direct chats, a group icon for groups
 export default function ChatAvatar({ conv, meId, size = 'size-10 text-sm' }) {
+  if (conv.type === 'otp')
+    return <span className={`grid shrink-0 place-items-center rounded-full bg-emerald-100 text-emerald-700 ${size}`}><Icon name="key" className="size-1/2" /></span>
   if (conv.type === 'group')
     return <span className={`grid shrink-0 place-items-center rounded-full bg-iris-soft text-iris ${size}`}><Icon name="users" className="size-1/2" /></span>
   const peer = peerOf(conv, meId)

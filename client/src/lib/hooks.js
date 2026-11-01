@@ -7,18 +7,33 @@ import { chat, CONVERSATIONS, MESSAGES } from './chat'
 
 export const useMembers = () => useQuery({ queryKey: ['members'], queryFn: api.members })
 export const useProjects = () => useQuery({ queryKey: ['projects'], queryFn: api.projects })
-// Polling keeps teammates' changes appearing without a manual refresh
+// Teammates' changes arrive instantly through the socket ("sync" events). Polling is only the safety net:
+// quick while the socket is down (so the app still feels live), slow while it is connected (so a team behind
+// one office IP doesn't flood the API).
+const SAFETY_NET = 5 * 60_000
+const useLive = (ms) => useStore(chat, (s) => (s.connected ? SAFETY_NET : ms))
 const LIVE = 10_000
-export const useTasks = (projectId) =>
-  useQuery({ queryKey: ['tasks', projectId], queryFn: () => api.tasks(projectId), enabled: !!projectId, refetchInterval: LIVE })
-export const useActivity = (projectId) =>
-  useQuery({ queryKey: ['activity', projectId], queryFn: () => api.activity(projectId), enabled: !!projectId, refetchInterval: LIVE })
-export const useNotifications = () =>
-  useQuery({ queryKey: ['notifications'], queryFn: api.notifications, refetchInterval: 15_000 })
-export const useRewards = () =>
-  useQuery({ queryKey: ['rewards', 'me'], queryFn: api.myRewards, refetchInterval: 30_000 })
-export const useLeaderboard = () =>
-  useQuery({ queryKey: ['rewards', 'leaderboard'], queryFn: api.leaderboard, refetchInterval: 30_000 })
+
+export const useTasks = (projectId) => {
+  const every = useLive(LIVE)
+  return useQuery({ queryKey: ['tasks', projectId], queryFn: () => api.tasks(projectId), enabled: !!projectId, refetchInterval: every })
+}
+export const useActivity = (projectId) => {
+  const every = useLive(LIVE)
+  return useQuery({ queryKey: ['activity', projectId], queryFn: () => api.activity(projectId), enabled: !!projectId, refetchInterval: every })
+}
+export const useNotifications = () => {
+  const every = useLive(15_000)
+  return useQuery({ queryKey: ['notifications'], queryFn: api.notifications, refetchInterval: every })
+}
+export const useRewards = () => {
+  const every = useLive(30_000)
+  return useQuery({ queryKey: ['rewards', 'me'], queryFn: api.myRewards, refetchInterval: every })
+}
+export const useLeaderboard = () => {
+  const every = useLive(30_000)
+  return useQuery({ queryKey: ['rewards', 'leaderboard'], queryFn: api.leaderboard, refetchInterval: every })
+}
 
 // Chat: the socket pushes changes instantly, so polling is only a safety net (faster while the socket is down)
 export const useConversations = () => {
@@ -34,8 +49,23 @@ export const useMessages = (id) => {
     refetchInterval: connected ? false : 5_000,
   })
 }
-export const useMeetings = () => useQuery({ queryKey: ['meetings'], queryFn: api.meetings, refetchInterval: 30_000 })
-export const useReport = () => useQuery({ queryKey: ['report'], queryFn: api.report, refetchInterval: 30_000 })
+export const useMeetings = () => {
+  const every = useLive(30_000)
+  return useQuery({ queryKey: ['meetings'], queryFn: api.meetings, refetchInterval: every })
+}
+export const useReport = () => {
+  const every = useLive(30_000)
+  return useQuery({ queryKey: ['report'], queryFn: api.report, refetchInterval: every })
+}
+export const useAttendanceToday = () => {
+  const every = useLive(60_000)
+  return useQuery({ queryKey: ['attendance', 'today'], queryFn: () => api.attendanceToday(), refetchInterval: every })
+}
+export const useAttendanceMe = (month) => useQuery({ queryKey: ['attendance', 'me', month], queryFn: () => api.attendanceMe(month) })
+export const useAttendanceDay = (date, enabled) =>
+  useQuery({ queryKey: ['attendance', 'day', date], queryFn: () => api.attendanceDay(date), enabled })
+export const useAttendanceMonth = (month, enabled) =>
+  useQuery({ queryKey: ['attendance', 'month', month], queryFn: () => api.attendanceMonth(month), enabled })
 export const useAdminUsers = () => useQuery({ queryKey: ['admin', 'users'], queryFn: api.adminUsers })
 export const useAdminStats = () => useQuery({ queryKey: ['admin', 'stats'], queryFn: api.adminStats })
 

@@ -1,5 +1,7 @@
 import Task from '../models/Task.js'
 import Notification from '../models/Notification.js'
+import { startOfToday } from './dates.js'
+import { emitToUsers } from './realtime.js'
 
 const DAY = 24 * 60 * 60 * 1000
 const fmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' })
@@ -7,8 +9,7 @@ const fmt = (d) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short
 // Tell assignees about tasks that are due today/tomorrow or already overdue.
 // Each reminder has a unique key, so running this again never creates duplicates.
 export async function sendDueReminders() {
-  const today = new Date()
-  today.setUTCHours(0, 0, 0, 0)
+  const today = startOfToday()
   const tomorrow = new Date(today.getTime() + DAY)
 
   const tasks = await Task.find({
@@ -30,5 +31,7 @@ export async function sendDueReminders() {
       },
     }
   })
-  if (ops.length) await Notification.collection.bulkWrite(ops, { ordered: false })
+  if (!ops.length) return
+  await Notification.collection.bulkWrite(ops, { ordered: false })
+  emitToUsers(tasks.map((t) => t.assigneeId), 'sync', { keys: [['notifications']] }) // bell updates without waiting for a poll
 }

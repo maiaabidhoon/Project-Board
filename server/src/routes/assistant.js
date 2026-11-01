@@ -4,8 +4,8 @@ import { env } from '../config/env.js'
 import { validate } from '../middleware/validate.js'
 import { assistantSchema } from '../schemas.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
-import { HttpError } from '../utils/HttpError.js'
 import { buildContext, systemPrompt } from '../utils/assistantContext.js'
+import { localAnswer } from '../utils/localAssistant.js'
 
 // The OpenAI key lives only on the server. Each question costs money, so each person is limited per minute.
 const router = Router()
@@ -15,16 +15,13 @@ const limiter = rateLimit({
   message: { error: 'You are asking too fast. Wait a moment and try again.' },
 })
 
-// Not 401 on purpose: the client signs people out on 401, and a bad OpenAI key is not the user's fault
-const FAILURES = {
-  401: 'The AI service rejected the API key. Ask an admin to check OPENAI_API_KEY.',
-  429: 'The AI service is busy or out of credit. Try again later.',
-}
+// Which mode is the assistant in? The UI shows a small hint when it is in basic mode.
+router.get('/status', (_req, res) => res.json({ ai: Boolean(env.openaiKey) }))
 
-router.post('/chat', limiter, validate(assistantSchema), asyncHandler(async (req, res) => {
-  if (!env.openaiKey) throw new HttpError(503, 'The AI assistant is not set up yet. Add OPENAI_API_KEY to server/.env and restart the server.')
-
-  const context = await buildContext(req.user, req.body.projectId)
+// Ask OpenAI. Returns the reply text, or null (after logging why) so the caller can fall back to basic mode.
+// The failure is never reported as 401: the client signs people out on 401, and a bad OpenAI key is not the user's fault.
+async function askOpenAI(user, body) {
+  const context = await buildContext(user, body.projectId)
   let response
   try {
     response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -33,25 +30,31 @@ router.post('/chat', limiter, validate(assistantSchema), asyncHandler(async (req
       body: JSON.stringify({
         model: env.openaiModel,
         max_completion_tokens: 700,
-        messages: [{ role: 'system', content: systemPrompt(context) }, ...req.body.messages.slice(-10)],
+        messages: [{ role: 'system', content: systemPrompt(context) }, ...body.messages.slice(-20)],
       }),
       signal: AbortSignal.timeout(30_000),
     })
   } catch (err) {
     console.error('OpenAI request failed:', err.name)
-    throw new HttpError(504, err.name === 'TimeoutError' ? 'The AI took too long to answer. Try again.' : 'Could not reach the AI service.')
+    return null
   }
-
   if (!response.ok) {
     const detail = await response.json().catch(() => ({}))
     console.error(`OpenAI error ${response.status}:`, detail.error?.message)
-    throw new HttpError(502, FAILURES[response.status] ?? 'The AI service had a problem. Try again.')
+    return null
   }
-
   const data = await response.json()
-  const reply = data.choices?.[0]?.message?.content?.trim()
-  if (!reply) throw new HttpError(502, 'The AI returned an empty answer. Try rephrasing.')
-  res.json({ reply })
+  return data.choices?.[0]?.message?.content?.trim() || null
+}
+
+router.post('/chat', limiter, validate(assistantSchema), asyncHandler(async (req, res) => {
+  if (env.openaiKey) {
+    const reply = await askOpenAI(req.user, req.body)
+    if (reply) return res.json({ reply, mode: 'ai' })
+  }
+  // No key, or the AI service failed: answer from the database instead of showing an error
+  const reply = await localAnswer(req.user, req.body.messages.at(-1).content, req.body.projectId)
+  res.json({ reply, mode: 'basic', fallback: Boolean(env.openaiKey) })
 }))
 
 export default router

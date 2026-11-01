@@ -4,6 +4,7 @@ import User from '../models/User.js'
 import Project from '../models/Project.js'
 import Meeting from '../models/Meeting.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
+import { startOfToday } from '../utils/dates.js'
 
 // Mounted behind can('report:view') in app.js
 const router = Router()
@@ -12,8 +13,9 @@ const count = (cond) => ({ $sum: { $cond: [cond, 1, 0] } })
 
 router.get('/overview', asyncHandler(async (_req, res) => {
   const now = new Date()
+  const today = startOfToday() // a task due today is not overdue until tomorrow
   const isOpen = { $ne: ['$status', 'done'] }
-  const isLate = { $and: [isOpen, { $ne: ['$dueDate', null] }, { $lt: ['$dueDate', now] }] }
+  const isLate = { $and: [isOpen, { $ne: ['$dueDate', null] }, { $lt: ['$dueDate', today] }] }
   const tally = {
     todo: count({ $eq: ['$status', 'todo'] }),
     doing: count({ $eq: ['$status', 'doing'] }),

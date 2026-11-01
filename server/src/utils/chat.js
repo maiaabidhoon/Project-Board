@@ -23,7 +23,7 @@ export const conversationView = (conv, unread = 0) => ({
   type: conv.type,
   name: conv.name ?? null,
   ownerId: conv.ownerId ? String(conv.ownerId) : null,
-  members: conv.members
+  members: conv.type === 'otp' ? [] : conv.members
     .filter((m) => m.userId)
     .map((m) => ({ id: m.userId.id, name: m.userId.name, role: m.userId.role, active: m.userId.active })),
   lastMessage: conv.lastMessage?.at
@@ -64,11 +64,12 @@ export async function loadConversationView(id, userId) {
  * Save a message, update the conversation's preview, and push it live to every member.
  * sender is { id, name }, or null for a system message ("Faizul added Arun").
  */
-export async function postMessage({ conversationId, recipientIds, sender = null, text, system = false }) {
+// botName: shown as the sender of a message that is not from a person (e.g. "Project Board OTP")
+export async function postMessage({ conversationId, recipientIds, sender = null, text, system = false, botName = null }) {
   const message = await Message.create({
     conversationId,
     senderId: sender?.id ?? null,
-    senderName: sender?.name ?? null,
+    senderName: sender?.name ?? botName,
     text: system ? text.slice(0, 500) : text,
     system,
   })

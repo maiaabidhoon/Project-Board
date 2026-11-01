@@ -3,12 +3,13 @@ import User from '../models/User.js'
 import Project from '../models/Project.js'
 import Task from '../models/Task.js'
 import Meeting from '../models/Meeting.js'
+import Attendance from '../models/Attendance.js'
 import { validate, validId } from '../middleware/validate.js'
 import { userCreateSchema, userUpdateSchema } from '../schemas.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HttpError } from '../utils/HttpError.js'
 import { notifyMany } from '../utils/notify.js'
-import { disconnectUser } from '../utils/realtime.js'
+import { disconnectUser, sync } from '../utils/realtime.js'
 import { purgeUserFromChats } from '../utils/chat.js'
 
 // Mounted behind authenticate + requireRole('admin') in app.js
@@ -27,8 +28,11 @@ router.get('/stats', asyncHandler(async (_req, res) => {
 
 router.get('/users', asyncHandler(async (_req, res) => res.json(await User.find().sort('createdAt'))))
 
-router.post('/users', validate(userCreateSchema), asyncHandler(async (req, res) =>
-  res.status(201).json(await User.create(req.body))))
+router.post('/users', validate(userCreateSchema), asyncHandler(async (req, res) => {
+  const user = await User.create(req.body)
+  sync([['members'], ['admin']])
+  res.status(201).json(user)
+}))
 
 router.patch('/users/:id', validate(userUpdateSchema), asyncHandler(async (req, res) => {
   const { name, role, active, password } = req.body
@@ -46,6 +50,7 @@ router.patch('/users/:id', validate(userUpdateSchema), asyncHandler(async (req, 
   if (active === false) disconnectUser(user.id) // close their chat connections right away
   if (role !== undefined && role !== previousRole)
     notifyMany([user.id], { type: 'role', message: `${req.user.name} changed your role to ${role}` })
+  sync([['members'], ['admin']])
   res.json(user)
 }))
 
@@ -54,8 +59,10 @@ router.delete('/users/:id', asyncHandler(async (req, res) => {
   if (!(await User.findByIdAndDelete(req.params.id))) throw new HttpError(404, 'User not found')
   await Task.updateMany({ assigneeId: req.params.id }, { assigneeId: null })
   await Promise.all([Meeting.deleteMany({ organizerId: req.params.id }), Meeting.updateMany({ attendees: req.params.id }, { $pull: { attendees: req.params.id } })])
+  await Attendance.deleteMany({ userId: req.params.id })
   disconnectUser(req.params.id)
   await purgeUserFromChats(req.params.id)
+  sync([['members'], ['admin'], ['tasks'], ['meetings'], ['report']])
   res.status(204).end()
 }))
 

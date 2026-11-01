@@ -16,6 +16,7 @@ import Chat from '../features/chat/Chat'
 import Meetings from '../features/Meetings'
 import Reports from '../features/Reports'
 import Assistant from '../features/Assistant'
+import Attendance from '../features/Attendance'
 
 const navClass = (active) =>
   `flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition ${
@@ -41,6 +42,7 @@ export default function Workspace() {
   const isChat = projectId === 'chat'
   const isMeetings = projectId === 'meetings'
   const isAssistant = projectId === 'assistant'
+  const isAttendance = projectId === 'attendance'
   const canReport = useCan('report:view')
   const isReports = projectId === 'reports' && canReport
   const unreadChats = useUnreadChats()
@@ -51,7 +53,7 @@ export default function Workspace() {
 
   // Land on the right page: members start on "My tasks", everyone else on the first project
   useEffect(() => {
-    if (isLoading || projectId === 'mine' || projectId === 'rewards' || projectId === 'chat' || projectId === 'meetings' || isAssistant || isReports || projects.some((p) => p.id === projectId)) return
+    if (isLoading || projectId === 'mine' || projectId === 'rewards' || projectId === 'chat' || projectId === 'meetings' || isAssistant || isAttendance || isReports || projects.some((p) => p.id === projectId)) return
     select({ projectId: user.role === 'member' ? 'mine' : (projects[0]?.id ?? 'mine'), taskId: null })
   }, [projects, projectId, isLoading, user.role, canReport])
 
@@ -85,6 +87,11 @@ export default function Workspace() {
           <button onClick={() => select({ projectId: 'assistant', taskId: null })} className={navClass(isAssistant)}>
             <Icon name="sparkles" className="size-4 shrink-0 opacity-70" />
             <span className="flex-1">AI Assistant</span>
+          </button>
+
+          <button onClick={() => select({ projectId: 'attendance', taskId: null })} className={navClass(isAttendance)}>
+            <Icon name="key" className="size-4 shrink-0 opacity-70" />
+            <span className="flex-1">Attendance</span>
           </button>
 
           <button onClick={() => select({ projectId: 'meetings', taskId: null })} className={navClass(isMeetings)}>
@@ -143,6 +150,8 @@ export default function Workspace() {
           <Chat />
         ) : isAssistant ? (
           <Assistant />
+        ) : isAttendance ? (
+          <Attendance />
         ) : isMeetings ? (
           <Meetings />
         ) : isReports ? (

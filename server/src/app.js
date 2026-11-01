@@ -7,7 +7,7 @@ import compression from 'compression'
 import morgan from 'morgan'
 import rateLimit from 'express-rate-limit'
 
-import { env } from './config/env.js'
+import { env, corsOrigin } from './config/env.js'
 import { authenticate } from './middleware/auth.js'
 import { requireRole, can } from './middleware/roles.js'
 import { notFound, errorHandler } from './middleware/error.js'
@@ -22,6 +22,7 @@ import chatRoutes from './routes/chat.js'
 import meetingRoutes from './routes/meetings.js'
 import reportRoutes from './routes/reports.js'
 import assistantRoutes from './routes/assistant.js'
+import attendanceRoutes from './routes/attendance.js'
 
 const app = express()
 app.disable('x-powered-by')
@@ -37,11 +38,17 @@ app.use(helmet({
     },
   },
 }))
-app.use(cors({ origin: env.clientOrigin }))
+app.use(cors({ origin: corsOrigin }))
 app.use(compression())
 if (!env.isProd) app.use(morgan('dev'))
 app.use(express.json({ limit: '100kb' }))
-app.use('/api', rateLimit({ windowMs: 15 * 60 * 1000, limit: 1000, standardHeaders: true, legacyHeaders: false }))
+// Generous on purpose: a whole team behind one office IP shares this budget, and every open tab polls as a safety net.
+// The reply is JSON (not the default plain text) so the app can show the message instead of "Something went wrong".
+app.use('/api', rateLimit({
+  windowMs: 15 * 60 * 1000, limit: env.isProd ? 5000 : 20000, standardHeaders: true, legacyHeaders: false,
+  skip: (req) => req.path === '/health',
+  message: { error: 'Too many requests. Please wait a moment and try again.' },
+}))
 
 // API
 app.get('/api/health', (_req, res) => res.json({ ok: true }))
@@ -54,6 +61,7 @@ app.use('/api/notifications', authenticate, notificationRoutes)
 app.use('/api/rewards', authenticate, rewardRoutes)
 app.use('/api/chat', authenticate, chatRoutes)
 app.use('/api/meetings', authenticate, meetingRoutes)
+app.use('/api/attendance', authenticate, attendanceRoutes)
 app.use('/api/assistant', authenticate, can('assistant:use'), assistantRoutes)
 app.use('/api/reports', authenticate, can('report:view'), reportRoutes)
 app.use('/api', notFound)

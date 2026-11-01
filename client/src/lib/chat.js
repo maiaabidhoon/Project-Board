@@ -1,7 +1,7 @@
 import { io } from 'socket.io-client'
 import { Store } from '@tanstack/store'
 import { auth, ui, notify } from './store'
-import { api } from './api'
+import { api, API_URL } from './api'
 
 // Live chat state. Conversations and messages themselves live in TanStack Query's cache (keys under ['chat']);
 // this store only holds what is purely live: which chat is open, the connection, who is online and who is typing.
@@ -61,7 +61,9 @@ const isViewing = (conversationId) =>
 export function connectSocket(token, qc) {
   disconnectSocket()
   let firstConnect = true
-  const s = (socket = io({ auth: { token } })) // same origin; Vite proxies /socket.io in development
+  // Same origin by default (Vite proxies /socket.io in development); VITE_SOCKET_URL overrides it, falling back to VITE_API_URL
+  const url = (import.meta.env.VITE_SOCKET_URL || API_URL || undefined)
+  const s = (socket = io(url, { auth: { token } }))
 
   s.on('connect', () => {
     patch({ connected: true })
@@ -70,7 +72,13 @@ export function connectSocket(token, qc) {
     firstConnect = false
   })
   s.on('disconnect', () => patch({ connected: false, typing: {} }))
-  s.on('connect_error', (err) => { if (err.data?.status === 401) s.disconnect() }) // the REST layer signs us out
+  s.on('connect_error', (err) => {
+    if (err.data?.status === 401) return s.disconnect() // the REST layer signs us out
+    console.warn('Live connection failed, retrying:', err.message) // e.g. the API server is not running
+  })
+
+  // The server says some data changed (a teammate moved a task, a notification arrived...): refetch it right away
+  s.on('sync', ({ keys = [] } = {}) => keys.forEach((queryKey) => qc.invalidateQueries({ queryKey })))
 
   s.on('message:new', (msg) => {
     const fromMe = msg.senderId === auth.state.user?.id

@@ -19,6 +19,9 @@ export const PERMISSIONS = {
   'meeting:create': ['member', 'manager', 'admin'],
   'report:view': ['manager', 'admin'],
   'chat:group:create': ['member', 'manager', 'admin'],
+  'attendance:mark': ['member', 'manager', 'admin'], // enter the daily OTP
+  'attendance:send': ['admin'], // generate and send the daily OTP
+  'attendance:view': ['manager', 'admin'], // see everyone's attendance
   'user:manage': ['admin'],
 }
 

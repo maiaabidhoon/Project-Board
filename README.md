@@ -303,3 +303,32 @@ Email and push delivery of notifications · file attachments · live board updat
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+## Troubleshooting
+
+**Chat shows "Reconnecting…" or nothing loads.** The API server is not running or cannot reach the database. Start `npm start` from the project root and read the first lines of the `api` output: it must say `MongoDB connected` and `API ready on http://localhost:4000`. If it says it could not connect, start MongoDB locally or set `MONGODB_URI` in `server/.env` (for Atlas, also allow your IP under *Network Access*).
+
+**"Please sign in again" right after logging in.** `JWT_SECRET` changed while you were signed in. Sign out and in again.
+
+**The AI Assistant says "Basic mode".** That is expected without an `OPENAI_API_KEY`: it answers from your project data. Add a key to `server/.env` and restart for full AI answers. If OpenAI is down or out of credit, it falls back to basic mode automatically.
+
+**Client and API on different domains.** Set `CLIENT_ORIGIN` on the server to the site's address, and `VITE_API_URL` (and optionally `VITE_SOCKET_URL`) in `client/.env` before building.
+
+## Live updates
+
+Besides chat, the server pushes a small `sync` event over the same socket when tasks, projects, meetings, notifications or people change, and open browsers refetch just that data immediately. Polling stays only as a slow safety net (every 5 minutes while connected, every 10-30 seconds if the socket is down).
+
+## Attendance (OTP)
+
+Every person has a read-only chat called **Project Board OTP**, plus an **Attendance** page in the sidebar.
+
+1. The **admin** opens either one, picks how long the code stays valid (15 minutes to 2 hours) and presses **Send today's OTP**. A 6-digit code is posted in the Project Board OTP chat for everyone.
+2. Everyone else types that code into the box under the chat (or on the Attendance page) and is marked **present** for that day, once. Nobody can type into the OTP chat.
+3. **Managers and admins** see who is present or absent for any date, and a per-person summary for the month. Everyone can see their own days.
+
+Rules: one OTP per day (sending a new one stops the old one working); days follow `TIMEZONE`; after 8 wrong tries a person must wait 10 minutes. The OTP is visible to everyone in the chat, so it proves someone *has the code*, not that they are physically present: keep the validity short, and send it when people are actually at work.
+
+## AI Assistant history
+
+A conversation with the assistant has no message limit. The app sends the most recent part of it with each question and the model reads the latest 20 messages, so long chats stay fast and cheap. The only remaining limit is 10 questions per minute per person.

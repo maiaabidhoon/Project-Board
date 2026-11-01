@@ -32,7 +32,7 @@ export function timeAgo(iso) {
 
 // Chat helpers
 export const peerOf = (conv, meId) => conv.members.find((m) => m.id !== meId)
-export const convTitle = (conv, meId) => (conv.type === 'group' ? conv.name : (peerOf(conv, meId)?.name ?? 'Deleted user'))
+export const convTitle = (conv, meId) => (conv.type === 'dm' ? (peerOf(conv, meId)?.name ?? 'Deleted user') : conv.name)
 
 export const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 export const dayKey = (iso) => new Date(iso).toLocaleDateString('en-CA')

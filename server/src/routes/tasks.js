@@ -9,6 +9,7 @@ import { HttpError } from '../utils/HttpError.js'
 import { logActivity } from '../utils/activity.js'
 import { notifyMany } from '../utils/notify.js'
 import { awardCompletion } from '../utils/rewards.js'
+import { sync } from '../utils/realtime.js'
 
 const router = Router()
 router.param('id', validId)
@@ -70,6 +71,7 @@ router.patch('/:id', validate(taskUpdateSchema), asyncHandler(async (req, res) =
   }
 
   // Only the person who earned the points sees the celebration; everyone else finds out via notifications
+  sync([['tasks'], ['report']] .concat(reward ? [['rewards']] : []))
   const body = task.toJSON()
   if (reward && reward.userId === String(req.user.id)) body.reward = reward
   res.json(body)
@@ -80,12 +82,15 @@ router.put('/:id/checklist', validate(checklistSchema), asyncHandler(async (req,
   const existing = await Task.findById(req.params.id).select('assigneeId')
   if (!existing) throw new HttpError(404, 'Task not found')
   if (!canActOn(req.user, existing, 'task:checklist')) throw forbidden()
-  res.json(await Task.findByIdAndUpdate(req.params.id, { checklist: req.body.items }, { new: true, runValidators: true }))
+  const updated = await Task.findByIdAndUpdate(req.params.id, { checklist: req.body.items }, { new: true, runValidators: true })
+  sync([['tasks']])
+  res.json(updated)
 }))
 
 router.delete('/:id', can('task:delete'), asyncHandler(async (req, res) => {
   const task = await Task.findByIdAndDelete(req.params.id)
   if (!task) throw new HttpError(404, 'Task not found')
+  sync([['tasks'], ['report']])
   logActivity(task.projectId, req.user.id, `deleted “${task.title}”`)
   notifyMany(others(req.user, [task.assigneeId]), {
     type: 'task', projectId: task.projectId, message: `${req.user.name} deleted “${task.title}”, which was assigned to you`,
@@ -104,6 +109,7 @@ router.post('/:id/comments', validate(commentSchema), asyncHandler(async (req, r
     { new: true, runValidators: true },
   )
   if (!task) throw new HttpError(404, 'Task not found')
+  sync([['tasks']])
   logActivity(task.projectId, req.user.id, `commented on “${task.title}”`)
   notifyMany(others(req.user, [task.assigneeId, task.createdBy]), {
     type: 'comment', projectId: task.projectId, taskId: task.id, message: `${req.user.name} commented on “${task.title}”`,

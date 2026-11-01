@@ -9,6 +9,7 @@ import { meetingSchema, meetingUpdateSchema } from '../schemas.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HttpError } from '../utils/HttpError.js'
 import { notifyMany } from '../utils/notify.js'
+import { sync } from '../utils/realtime.js'
 
 // You only ever see meetings you organize or are invited to
 const router = Router()
@@ -32,6 +33,7 @@ router.post('/', can('meeting:create'), validate(meetingSchema), asyncHandler(as
   await checkLinks({ attendees, projectId: data.projectId })
   const meeting = await Meeting.create({ ...data, attendees, organizerId: req.user.id })
   notifyMany(attendees, { type: 'meeting', message: `${req.user.name} invited you to “${meeting.title}” on ${when(meeting.startsAt)}` })
+  sync([['meetings']], [req.user.id, ...attendees])
   res.status(201).json(meeting)
 }))
 
@@ -52,6 +54,7 @@ router.patch('/:id', validate(meetingUpdateSchema), asyncHandler(async (req, res
   notifyMany(added, { type: 'meeting', message: `${req.user.name} invited you to “${meeting.title}” on ${when(meeting.startsAt)}` })
   if (meeting.startsAt.getTime() !== before.time)
     notifyMany(meeting.attendees.map(String).filter((id) => !added.includes(id)), { type: 'meeting', message: `“${meeting.title}” moved to ${when(meeting.startsAt)}` })
+  sync([['meetings']], [req.user.id, ...before.people, ...meeting.attendees.map(String)])
   res.json(meeting)
 }))
 
@@ -61,6 +64,7 @@ router.delete('/:id', asyncHandler(async (req, res) => {
   if (String(meeting.organizerId) !== req.user.id) throw new HttpError(403, 'Only the organizer can cancel this meeting')
   await meeting.deleteOne()
   notifyMany(meeting.attendees.map(String), { type: 'meeting', message: `${req.user.name} cancelled “${meeting.title}”` })
+  sync([['meetings']], [req.user.id, ...meeting.attendees.map(String)])
   res.status(204).end()
 }))
 

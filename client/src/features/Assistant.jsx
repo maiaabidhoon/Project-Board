@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useStore } from '@tanstack/react-store'
 import { api } from '../lib/api'
 import { assistantChat, notify } from '../lib/store'
@@ -18,11 +18,17 @@ export default function Assistant() {
   const { data: projects = [] } = useProjects()
   const [text, setText] = useState('')
   const [projectId, setProjectId] = useState('')
+  const [fellBack, setFellBack] = useState(false) // the last answer came from basic mode because the AI service failed
   const end = useRef(null)
+  const { data: status } = useQuery({ queryKey: ['assistant', 'status'], queryFn: api.assistantStatus, staleTime: 5 * 60_000 })
+  const basic = status ? !status.ai : false
 
   const ask = useMutation({
     mutationFn: (history) => api.askAssistant(history, projectId),
-    onSuccess: ({ reply }) => assistantChat.setState((m) => [...m, { role: 'assistant', content: reply }]),
+    onSuccess: ({ reply, fallback }) => {
+      setFellBack(Boolean(fallback))
+      assistantChat.setState((m) => [...m, { role: 'assistant', content: reply }])
+    },
     onError: (e, history) => {
       // Take the question back out so the person can edit it and try again
       assistantChat.setState((m) => m.slice(0, history.length - 1))
@@ -58,6 +64,14 @@ export default function Assistant() {
           <button onClick={() => assistantChat.setState(() => [])} disabled={ask.isPending} className="btn btn-ghost px-3 py-2">New chat</button>
         )}
       </header>
+
+      {(basic || fellBack) && (
+        <p className="border-b border-line bg-amber-50 px-5 py-2 text-xs text-amber-800">
+          {basic
+            ? 'Basic mode: answers come straight from your project data. An admin can add OPENAI_API_KEY to server/.env for full AI answers.'
+            : 'The AI service is unavailable right now, so this answer came from basic mode.'}
+        </p>
+      )}
 
       <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
         {messages.length === 0 && (

@@ -1,5 +1,5 @@
 import { Server } from 'socket.io'
-import { env } from './config/env.js'
+import { corsOrigin } from './config/env.js'
 import { userFromToken } from './middleware/auth.js'
 import { socketMessageSchema } from './schemas.js'
 import Conversation from './models/Conversation.js'
@@ -30,7 +30,7 @@ const limiter = (max) => {
  */
 export function initSocket(httpServer) {
   const io = new Server(httpServer, {
-    cors: { origin: env.clientOrigin },
+    cors: { origin: corsOrigin },
     maxHttpBufferSize: 16 * 1024, // messages are short text, so refuse anything big
   })
   setIO(io)
@@ -64,8 +64,9 @@ export function initSocket(httpServer) {
         const parsed = socketMessageSchema.safeParse(data)
         if (!parsed.success) throw new HttpError(400, parsed.error.issues[0].message)
 
-        const conv = await Conversation.findOne({ _id: parsed.data.conversationId, 'members.userId': user.id }).select('members.userId')
+        const conv = await Conversation.findOne({ _id: parsed.data.conversationId, 'members.userId': user.id }).select('type members.userId')
         if (!conv) throw new HttpError(404, 'Conversation not found')
+        if (conv.type === 'otp') throw new HttpError(403, 'This chat is read-only. Enter the OTP below to mark your attendance')
 
         const message = await postMessage({
           conversationId: conv.id, recipientIds: memberIds(conv), sender: { id: user.id, name: user.name }, text: parsed.data.text,

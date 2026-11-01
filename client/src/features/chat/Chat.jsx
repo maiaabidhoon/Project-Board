@@ -10,7 +10,7 @@ import NewChat from './NewChat'
 
 function preview(conv, meId) {
   const m = conv.lastMessage
-  if (!m) return conv.type === 'group' ? 'No messages yet' : 'Say hello'
+  if (!m) return conv.type === 'dm' ? 'Say hello' : conv.type === 'otp' ? 'No OTP sent yet today' : 'No messages yet'
   if (m.system) return m.text
   const who = m.senderId === meId ? 'You: ' : conv.type === 'group' ? `${firstName(m.senderName ?? '')}: ` : ''
   return who + m.text

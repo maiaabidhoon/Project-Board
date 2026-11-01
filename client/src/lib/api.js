@@ -1,8 +1,11 @@
 import { auth, clearSession, celebrate } from './store'
 
+// Leave VITE_API_URL empty in development (Vite proxies /api). Set it when the API lives on another domain, e.g. https://api.example.com
+export const API_URL = (import.meta.env.VITE_API_URL ?? '').replace(/\/$/, '')
+
 async function req(path, { method = 'GET', body } = {}) {
   const { token } = auth.state
-  const res = await fetch(`/api${path}`, {
+  const res = await fetch(`${API_URL}/api${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', ...(token && { Authorization: `Bearer ${token}` }) },
     body: body && JSON.stringify(body),
@@ -10,6 +13,21 @@ async function req(path, { method = 'GET', body } = {}) {
   if (res.status === 401 && token && path !== '/auth/login') clearSession()
   if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Something went wrong')
   return res.status === 204 ? null : res.json()
+}
+
+// The assistant has no limit on how long a conversation can be. We send the most recent messages that fit in a size
+// budget (the server also caps request bodies), dropping only the oldest ones from what the model sees.
+const CONTEXT_CHARS = 25_000
+function recent(messages) {
+  const out = []
+  let used = 0
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const { role, content } = messages[i]
+    used += content.length
+    if (out.length && used > CONTEXT_CHARS) break
+    out.unshift({ role, content })
+  }
+  return out
 }
 
 export const api = {
@@ -54,13 +72,20 @@ export const api = {
   addMeeting: (meeting) => req('/meetings', { method: 'POST', body: meeting }),
   updateMeeting: (id, patch) => req(`/meetings/${id}`, { method: 'PATCH', body: patch }),
   deleteMeeting: (id) => req(`/meetings/${id}`, { method: 'DELETE' }),
-  askAssistant: (messages, projectId) => req('/assistant/chat', { method: 'POST', body: { messages, projectId: projectId || null } }),
+  askAssistant: (messages, projectId) => req('/assistant/chat', { method: 'POST', body: { messages: recent(messages), projectId: projectId || null } }),
+  attendanceToday: () => req('/attendance/today'),
+  attendanceMe: (month) => req(`/attendance/me?month=${month}`),
+  attendanceDay: (date) => req(`/attendance/day?date=${date}`),
+  attendanceMonth: (month) => req(`/attendance/month?month=${month}`),
+  sendOtp: (validMinutes) => req('/attendance/otp', { method: 'POST', body: { validMinutes } }),
+  markAttendance: (otp) => req('/attendance/mark', { method: 'POST', body: { otp } }),
+  assistantStatus: () => req('/assistant/status'),
   report: () => req('/reports/overview'),
 
   myRewards: () => req('/rewards/me'),
   leaderboard: () => req('/rewards/leaderboard'),
   exportProject: async (id) => {
-    const res = await fetch(`/api/projects/${id}/export`, { headers: { Authorization: `Bearer ${auth.state.token}` } })
+    const res = await fetch(`${API_URL}/api/projects/${id}/export`, { headers: { Authorization: `Bearer ${auth.state.token}` } })
     if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || 'Export failed')
     const file = /filename="(.+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1] ?? 'tasks.csv'
     const link = Object.assign(document.createElement('a'), { href: URL.createObjectURL(await res.blob()), download: file })

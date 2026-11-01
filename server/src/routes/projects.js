@@ -9,19 +9,24 @@ import { validate, validId } from '../middleware/validate.js'
 import { projectSchema, taskCreateSchema } from '../schemas.js'
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HttpError } from '../utils/HttpError.js'
+import { sync } from '../utils/realtime.js'
 
 const router = Router()
 router.param('id', validId)
 
 router.get('/', asyncHandler(async (_req, res) => res.json(await Project.find().sort('name'))))
 
-router.post('/', can('project:create'), validate(projectSchema), asyncHandler(async (req, res) =>
-  res.status(201).json(await Project.create(req.body))))
+router.post('/', can('project:create'), validate(projectSchema), asyncHandler(async (req, res) => {
+  const project = await Project.create(req.body)
+  sync([['projects'], ['report']])
+  res.status(201).json(project)
+}))
 
 router.delete('/:id', can('project:delete'), asyncHandler(async (req, res) => {
   const project = await Project.findByIdAndDelete(req.params.id)
   if (!project) throw new HttpError(404, 'Project not found')
   await Promise.all([Task.deleteMany({ projectId: project.id }), Activity.deleteMany({ projectId: project.id })])
+  sync([['projects'], ['tasks'], ['report']])
   res.status(204).end()
 }))
 
@@ -31,6 +36,7 @@ router.get('/:id/tasks', asyncHandler(async (req, res) =>
 router.post('/:id/tasks', can('task:create'), validate(taskCreateSchema), asyncHandler(async (req, res) => {
   if (!(await Project.exists({ _id: req.params.id }))) throw new HttpError(404, 'Project not found')
   const task = await Task.create({ projectId: req.params.id, title: req.body.title, createdBy: req.user.id })
+  sync([['tasks'], ['report']])
   logActivity(task.projectId, req.user.id, `created “${task.title}”`)
   res.status(201).json(task)
 }))

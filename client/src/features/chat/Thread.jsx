@@ -9,12 +9,13 @@ import { clock, colorFor, convTitle, dayKey, dayLabel, peerOf } from '../../lib/
 import ChatAvatar from '../../components/ChatAvatar'
 import Icon from '../../components/Icon'
 import GroupInfo from './GroupInfo'
+import { OtpEntry, SendOtp } from '../attendance/Otp'
 
 const CLUSTER_MS = 5 * 60 * 1000 // messages from one person within 5 minutes read as a single block
 
 export default function Thread({ conv }) {
   const qc = useQueryClient()
-  const { user } = usePerms()
+  const { user, can } = usePerms()
   const { data, isLoading, isError } = useMessages(conv.id)
   const connected = useStore(chat, (s) => s.connected)
   const typingNow = useStore(chat, (s) => s.typing[conv.id])
@@ -91,7 +92,7 @@ export default function Thread({ conv }) {
 
   const subtitle = typers.length
     ? <span className="text-iris">{conv.type === 'dm' ? 'typing…' : `${typers.join(', ')} typing…`}</span>
-    : conv.type === 'dm' ? (peerOnline ? 'Online' : 'Offline') : `${conv.members.length} members`
+    : conv.type === 'dm' ? (peerOnline ? 'Online' : 'Offline') : conv.type === 'otp' ? 'Daily attendance · read-only' : `${conv.members.length} members`
 
   return (
     <>
@@ -133,7 +134,7 @@ export default function Thread({ conv }) {
               ) : (
                 <div className={`flex ${mine ? 'justify-end' : 'justify-start'} ${cluster ? 'mt-3' : 'mt-0.5'}`}>
                   <div className={`max-w-[80%] min-w-0 rounded-2xl px-3.5 py-2 text-sm ${mine ? 'rounded-br-md bg-iris text-white' : 'rounded-bl-md bg-canvas text-ink'}`}>
-                    {conv.type === 'group' && !mine && cluster && (
+                    {conv.type !== 'dm' && !mine && cluster && (
                       <p className="mb-0.5 text-xs font-semibold" style={{ color: colorFor(nameOf(m)) }}>{nameOf(m)}</p>
                     )}
                     <p className="break-words whitespace-pre-wrap">{m.text}</p>
@@ -146,12 +147,19 @@ export default function Thread({ conv }) {
         })}
       </div>
 
-      <div className="flex items-end gap-2 border-t border-line p-3">
-        <textarea ref={input} value={text} onChange={onChange} rows={1} maxLength={2000} aria-label="Message" placeholder="Write a message…"
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit() } }}
-          className="input max-h-32 resize-none py-2.5" />
-        <button onClick={submit} disabled={!text.trim()} aria-label="Send" className="btn btn-primary px-3.5 py-3"><Icon name="send" /></button>
-      </div>
+      {conv.type === 'otp' ? (
+        <div className="space-y-3 border-t border-line p-3">
+          <OtpEntry />
+          {can('attendance:send') && <SendOtp />}
+        </div>
+      ) : (
+        <div className="flex items-end gap-2 border-t border-line p-3">
+          <textarea ref={input} value={text} onChange={onChange} rows={1} maxLength={2000} aria-label="Message" placeholder="Write a message…"
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); submit() } }}
+            className="input max-h-32 resize-none py-2.5" />
+          <button onClick={submit} disabled={!text.trim()} aria-label="Send" className="btn btn-primary px-3.5 py-3"><Icon name="send" /></button>
+        </div>
+      )}
 
       {info && <GroupInfo conv={conv} onClose={() => setInfo(false)} />}
     </>

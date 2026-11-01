@@ -14,10 +14,10 @@ const memberSchema = new mongoose.Schema(
 // One document per direct chat ("dm") or group chat ("group")
 const conversationSchema = new mongoose.Schema(
   {
-    type: { type: String, enum: ['dm', 'group'], required: true },
+    type: { type: String, enum: ['dm', 'group', 'otp'], required: true }, // 'otp' = the read-only "Project Board OTP" channel
     name: { type: String, trim: true, maxlength: 60 }, // groups only
     ownerId: ref('User'), // groups only: the person who can rename, add and remove people, or delete the group
-    dmKey: { type: String }, // "idA:idB" (sorted), so a pair of people only ever has one direct chat
+    dmKey: { type: String }, // "idA:idB" (sorted), so a pair of people only ever has one direct chat; "system:otp" for the OTP channel
     members: [memberSchema],
     lastMessage: {
       text: String,

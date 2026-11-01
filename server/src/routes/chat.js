@@ -10,6 +10,7 @@ import {
 import { asyncHandler } from '../utils/asyncHandler.js'
 import { HttpError } from '../utils/HttpError.js'
 import { emitToUsers } from '../utils/realtime.js'
+import { ensureOtpChat } from '../utils/attendance.js'
 import {
   MAX_GROUP_MEMBERS, sameId, memberIds, messageView, listConversations, loadConversationView,
   postMessage, deleteConversation,
@@ -36,7 +37,10 @@ function requireOwner(conv, user) {
 const system = (conv, recipientIds, text) => postMessage({ conversationId: conv.id, recipientIds, text, system: true })
 const changed = (conv, ids = memberIds(conv)) => emitToUsers(ids, 'conversation:changed', { id: conv.id })
 
-router.get('/conversations', asyncHandler(async (req, res) => res.json(await listConversations(req.user.id))))
+router.get('/conversations', asyncHandler(async (req, res) => {
+  await ensureOtpChat([req.user.id]) // everyone has the "Project Board OTP" chat
+  res.json(await listConversations(req.user.id))
+}))
 
 // Start a direct chat (re-uses the existing one if there is one) or create a group
 router.post('/conversations', validate(conversationCreateSchema), asyncHandler(async (req, res) => {
@@ -96,6 +100,7 @@ router.get('/conversations/:id/messages', validate(messagesQuerySchema, 'query')
 // The app sends messages over the socket; this is the same thing over plain HTTP, used when the socket is down
 router.post('/conversations/:id/messages', validate(messageSchema), asyncHandler(async (req, res) => {
   const conv = await mine(req.params.id, req.user.id)
+  if (conv.type === 'otp') throw new HttpError(403, 'This chat is read-only. Enter the OTP below to mark your attendance')
   const message = await postMessage({
     conversationId: conv.id, recipientIds: memberIds(conv), sender: { id: req.user.id, name: req.user.name }, text: req.body.text,
   })

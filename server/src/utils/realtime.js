@@ -11,6 +11,23 @@ export function emitToUsers(userIds, event, payload) {
   for (const id of new Set(userIds.map(String))) io.to(`user:${id}`).emit(event, payload)
 }
 
+/** Send an event to everyone who is connected */
+export const emitToAll = (event, payload) => io?.emit(event, payload)
+
+/**
+ * Tell clients that some cached data is out of date, so they refetch it right away instead of waiting for a poll.
+ * keys are TanStack Query keys, e.g. [['tasks'], ['activity']]. With userIds only those people are told, otherwise everyone.
+ * Failures here must never break the request that caused them.
+ */
+export function sync(keys, userIds) {
+  try {
+    if (userIds) emitToUsers(userIds, 'sync', { keys })
+    else emitToAll('sync', { keys })
+  } catch (err) {
+    console.error('sync failed:', err.message)
+  }
+}
+
 /** Drop all of a user's sockets, e.g. when they are deactivated or change their password */
 export const disconnectUser = (userId) => io?.in(`user:${userId}`).disconnectSockets(true)
 

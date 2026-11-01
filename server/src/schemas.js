@@ -88,10 +88,19 @@ export const meetingUpdateSchema = meetingSchema.partial().extend({ notes: z.str
   .refine((b) => Object.keys(b).length > 0, 'Nothing to update')
 
 // AI assistant
+// No cap on how many messages a conversation can have. The app sends the most recent ones that fit, and the server
+// hands the model only the latest few to keep each answer fast and cheap. A single message from you is up to 2000
+// characters; the assistant's own earlier answers are longer, so they get more room (they used to be rejected).
 export const assistantSchema = z.object({
   messages: z.array(z.object({
     role: z.enum(['user', 'assistant']),
-    content: z.string().trim().min(1, 'Message is empty').max(2000, 'Message is too long (2000 characters max)'),
-  })).min(1).max(20),
+    content: z.string().trim().min(1, 'Message is empty').max(8000, 'Message is too long'),
+  }).refine((m) => m.role === 'assistant' || m.content.length <= 2000, 'Message is too long (2000 characters max)')).min(1),
   projectId: objectId.nullable().optional(),
 }).refine((b) => b.messages.at(-1).role === 'user', 'The last message must be yours')
+
+// Attendance
+export const otpEntrySchema = z.object({ otp: z.string({ required_error: 'Enter the 6-digit OTP' }).trim().regex(/^\d{6}$/, 'Enter the 6-digit OTP') })
+export const otpSendSchema = z.object({ validMinutes: z.number().int().min(5, 'At least 5 minutes').max(240, 'At most 4 hours').default(30) })
+export const attendanceDaySchema = z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a valid date').refine(isRealDate, 'Use a valid date').optional() })
+export const attendanceMonthSchema = z.object({ month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'Use a month like 2026-11').optional() })
